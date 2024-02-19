@@ -89,12 +89,15 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
 
         Add EAS package format support for input
 
+    .. versionchanged:: 0.3.0
+        No packages located will raise a JobCancelled error.
+
     """
 
     name = "Convert CaptureOne TIFF to Digital Library Compound Object and " \
            "HathiTrust"
     description = "Input is a path to a folder of TIFF files all named with " \
-                  "a bibid as a prefacing identifier, a final delimiting " \
+                  "an object identifier sequence, a final delimiting" \
                   "dash, and a sequence consisting of " \
                   "padded zeroes and a number." \
                   "\n" \
@@ -188,6 +191,12 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
                 f"Failed to locate packages at {source_input}. Reason: {error}"
             ) from error
 
+        if not jobs:
+            raise speedwagon.JobCancelled(
+                f"No packages located at {source_input}. Check location "
+                f"and/or the structure of the files and folders match the "
+                f"Package Type."
+            )
         return typing.cast(List[Dict[str, typing.Union[str, Any]]], jobs)
 
     @staticmethod
