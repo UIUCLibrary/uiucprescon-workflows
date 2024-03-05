@@ -1,10 +1,15 @@
+library identifier: 'JenkinsPythonHelperLibrary@2024.1.2', retriever: modernSCM(
+  [$class: 'GitSCMSource',
+   remote: 'https://github.com/UIUCLibrary/JenkinsPythonHelperLibrary.git',
+   ])
+
 pipeline {
     agent none
     parameters {
         booleanParam(name: 'RUN_CHECKS', defaultValue: true, description: 'Run checks on code')
 //        booleanParam(name: 'USE_SONARQUBE', defaultValue: true, description: 'Send data test data to SonarQube')
 //        credentials(name: 'SONARCLOUD_TOKEN', credentialType: 'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl', defaultValue: 'sonarcloud_token', required: false)
-//        booleanParam(name: 'TEST_RUN_TOX', defaultValue: false, description: 'Run Tox Tests')
+        booleanParam(name: 'TEST_RUN_TOX', defaultValue: false, description: 'Run Tox Tests')
 //        booleanParam(name: 'BUILD_PACKAGES', defaultValue: false, description: 'Build Packages')
 //        booleanParam(name: 'TEST_STANDALONE_PACKAGE_DEPLOYMENT', defaultValue: true, description: 'Test deploying any packages that are designed to be installed without using Python directly')
 //        booleanParam(name: 'BUILD_CHOCOLATEY_PACKAGE', defaultValue: false, description: 'Build package for chocolatey package manager')
@@ -71,46 +76,47 @@ pipeline {
                         equals expected: true, actual: params.RUN_CHECKS
                         beforeAgent true
                     }
-                    agent any
-//                    agent {
-//                        dockerfile {
-//                            filename 'ci/docker/python/linux/jenkins/Dockerfile'
-//                            label 'linux && docker && x86'
-//                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-//                            args '--mount source=sonar-cache-speedwagon,target=/opt/sonar/.sonar/cache'
-//                          }
-//                    }
+                    agent {
+                        dockerfile {
+                            filename 'ci/docker/linux/jenkins/Dockerfile'
+                            label 'linux && docker && x86'
+                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
+                            args '--mount source=sonar-cache-uiucpreson_workflows,target=/opt/sonar/.sonar/cache'
+                          }
+                    }
                     options {
                         retry(conditions: [agent()], count: 2)
                     }
                     stages{
                         stage('Test') {
                             stages{
-                                stage('Run Tests'){
+                                stage('Setup Tests'){
                                     steps{
-                                        echo "Running tests"
+                                        sh 'mkdir -p reports'
                                     }
-//                                    parallel {
-//                                        stage('Run PyTest Unit Tests'){
-//                                            steps{
-//                                                catchError(buildResult: 'UNSTABLE', message: 'Did not pass all pytest tests', stageResult: 'UNSTABLE') {
-//                                                    sh(
-//                                                        script: 'PYTHONFAULTHANDLER=1 coverage run --parallel-mode --source=speedwagon -m pytest --junitxml=./reports/tests/pytest/pytest-junit.xml --capture=no'
-//                                                    )
-//                                                }
-//                                            }
-//                                            post {
-//                                                always {
-//                                                    junit(allowEmptyResults: true, testResults: 'reports/tests/pytest/pytest-junit.xml')
-//                                                    stash(allowEmpty: true, includes: 'reports/tests/pytest/*.xml', name: 'PYTEST_UNIT_TEST_RESULTS')
-//                                                }
-//                                            }
-//                                        }
-//                                        stage('Task Scanner'){
-//                                            steps{
-//                                                recordIssues(tools: [taskScanner(highTags: 'FIXME', includePattern: 'speedwagon/**/*.py', normalTags: 'TODO')])
-//                                            }
-//                                        }
+                                }
+                                stage('Run Tests'){
+                                    parallel {
+                                        stage('Run PyTest Unit Tests'){
+                                            steps{
+                                                catchError(buildResult: 'UNSTABLE', message: 'Did not pass all pytest tests', stageResult: 'UNSTABLE') {
+                                                    sh(
+                                                        script: 'PYTHONFAULTHANDLER=1 coverage run --parallel-mode --source=speedwagon_uiucpreson -m pytest --junitxml=./reports/tests/pytest/pytest-junit.xml --capture=no'
+                                                    )
+                                                }
+                                            }
+                                            post {
+                                                always {
+                                                    junit(allowEmptyResults: true, testResults: 'reports/tests/pytest/pytest-junit.xml')
+                                                    stash(allowEmpty: true, includes: 'reports/tests/pytest/*.xml', name: 'PYTEST_UNIT_TEST_RESULTS')
+                                                }
+                                            }
+                                        }
+                                        stage('Task Scanner'){
+                                            steps{
+                                                recordIssues(tools: [taskScanner(highTags: 'FIXME', includePattern: 'speedwagon_uiucpreson/**/*.py', normalTags: 'TODO')])
+                                            }
+                                        }
 //                                        stage('Audit Requirement Freeze File'){
 //                                            steps{
 //                                                catchError(buildResult: 'SUCCESS', message: 'pip-audit found issues', stageResult: 'UNSTABLE') {
@@ -133,72 +139,81 @@ pipeline {
 //                                                }
 //                                            }
 //                                        }
-//                                        stage('Run MyPy Static Analysis') {
-//                                            steps{
-//                                                catchError(buildResult: 'SUCCESS', message: 'MyPy found issues', stageResult: 'UNSTABLE') {
-//                                                    tee('logs/mypy.log'){
-//                                                        sh(label: 'Running MyPy',
-//                                                           script: 'mypy -p speedwagon --html-report reports/mypy/html'
-//                                                        )
-//                                                    }
-//                                                }
-//                                            }
-//                                            post {
-//                                                always {
-//                                                    recordIssues(tools: [myPy(pattern: 'logs/mypy.log')])
-//                                                    publishHTML([allowMissing: true, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'reports/mypy/html/', reportFiles: 'index.html', reportName: 'MyPy HTML Report', reportTitles: ''])
-//                                                }
-//                                            }
-//                                        }
-//                                        stage('Run Pylint Static Analysis') {
-//                                            steps{
-//                                                run_pylint()
-//                                            }
-//                                            post{
-//                                                always{
-//                                                    stash includes: 'reports/pylint_issues.txt,reports/pylint.txt', name: 'PYLINT_REPORT'
-//                                                    recordIssues(tools: [pyLint(pattern: 'reports/pylint_issues.txt')])
-//                                                }
-//                                            }
-//                                        }
-//                                        stage('Run Flake8 Static Analysis') {
-//                                            steps{
-//                                                catchError(buildResult: 'SUCCESS', message: 'Flake8 found issues', stageResult: 'UNSTABLE') {
-//                                                    sh script: 'flake8 speedwagon -j 1 --tee --output-file=logs/flake8.log'
-//                                                }
-//                                            }
-//                                            post {
-//                                                always {
-//                                                      stash includes: 'logs/flake8.log', name: 'FLAKE8_REPORT'
-//                                                      recordIssues(tools: [flake8(pattern: 'logs/flake8.log')])
-//                                                }
-//                                            }
-//                                        }
-//                                        stage('pyDocStyle'){
-//                                            steps{
-//                                                catchError(buildResult: 'SUCCESS', message: 'Did not pass all pyDocStyle tests', stageResult: 'UNSTABLE') {
-//                                                    sh(
-//                                                        label: 'Run pydocstyle',
-//                                                        script: '''mkdir -p reports
-//                                                                   pydocstyle speedwagon > reports/pydocstyle-report.txt
-//                                                                   '''
-//                                                    )
-//                                                }
-//                                            }
-//                                            post {
-//                                                always{
-//                                                    recordIssues(tools: [pyDocStyle(pattern: 'reports/pydocstyle-report.txt')])
-//                                                }
-//                                            }
-//                                        }
-//                                    }
-//                                    post{
-//                                        always{
-//                                            sh 'coverage combine && coverage xml -o reports/coverage.xml && coverage html -d reports/coverage'
-//                                            stash includes: 'reports/coverage.xml', name: 'COVERAGE_REPORT_DATA'
-//                                            recordCoverage(tools: [[parser: 'COBERTURA', pattern: 'reports/coverage.xml']])
-//                                        }
-//                                    }
+                                        stage('Run MyPy Static Analysis') {
+                                            steps{
+                                                catchError(buildResult: 'SUCCESS', message: 'MyPy found issues', stageResult: 'UNSTABLE') {
+                                                    tee('logs/mypy.log'){
+                                                        sh(label: 'Running MyPy',
+                                                           script: 'mypy -p speedwagon_uiucpreson --html-report reports/mypy/html'
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            post {
+                                                always {
+                                                    recordIssues(tools: [myPy(pattern: 'logs/mypy.log')])
+                                                    publishHTML([allowMissing: true, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'reports/mypy/html/', reportFiles: 'index.html', reportName: 'MyPy HTML Report', reportTitles: ''])
+                                                }
+                                            }
+                                        }
+                                        stage('Run Pylint Static Analysis') {
+                                            steps{
+                                                catchError(buildResult: 'SUCCESS', message: 'Pylint found issues', stageResult: 'UNSTABLE') {
+                                                    sh(label: 'Running pylint',
+                                                        script: 'pylint speedwagon_uiucpreson -r n --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" > reports/pylint.txt'
+                                                    )
+                                                }
+                                                sh(
+                                                    script: 'pylint speedwagon_uiucpreson -r n --msg-template="{path}:{module}:{line}: [{msg_id}({symbol}), {obj}] {msg}" | tee reports/pylint_issues.txt',
+                                                    label: 'Running pylint for sonarqube',
+                                                    returnStatus: true
+                                                )
+                                            }
+                                            post{
+                                                always{
+                                                    recordIssues(tools: [pyLint(pattern: 'reports/pylint.txt')])
+                                                    stash includes: 'reports/pylint_issues.txt,reports/pylint.txt', name: 'PYLINT_REPORT'
+                                                }
+                                            }
+                                        }
+                                        stage('Run Flake8 Static Analysis') {
+                                            steps{
+                                                catchError(buildResult: 'SUCCESS', message: 'Flake8 found issues', stageResult: 'UNSTABLE') {
+                                                    sh script: 'flake8 speedwagon_uiucpreson -j 1 --tee --output-file=logs/flake8.log'
+                                                }
+                                            }
+                                            post {
+                                                always {
+                                                      stash includes: 'logs/flake8.log', name: 'FLAKE8_REPORT'
+                                                      recordIssues(tools: [flake8(pattern: 'logs/flake8.log')])
+                                                }
+                                            }
+                                        }
+                                        stage('pyDocStyle'){
+                                            steps{
+                                                catchError(buildResult: 'SUCCESS', message: 'Did not pass all pyDocStyle tests', stageResult: 'UNSTABLE') {
+                                                    sh(
+                                                        label: 'Run pydocstyle',
+                                                        script: '''mkdir -p reports
+                                                                   pydocstyle speedwagon_uiucpreson > reports/pydocstyle-report.txt
+                                                                   '''
+                                                    )
+                                                }
+                                            }
+                                            post {
+                                                always{
+                                                    recordIssues(tools: [pyDocStyle(pattern: 'reports/pydocstyle-report.txt')])
+                                                }
+                                            }
+                                        }
+                                    }
+                                    post{
+                                        always{
+                                            sh 'coverage combine && coverage xml -o reports/coverage.xml && coverage html -d reports/coverage'
+                                            stash includes: 'reports/coverage.xml', name: 'COVERAGE_REPORT_DATA'
+                                            recordCoverage(tools: [[parser: 'COBERTURA', pattern: 'reports/coverage.xml']])
+                                        }
+                                    }
                                 }
                             }
 
@@ -270,19 +285,54 @@ pipeline {
                                     [pattern: '.coverage', type: 'INCLUDE']
                                 ])
                         }
-//                        failure{
-//                            sh 'pip list'
-//                        }
+                        failure{
+                            sh 'pip list'
+                        }
                     }
                 }
-//                stage('Run Tox'){
-//                    when{
-//                        equals expected: true, actual: params.TEST_RUN_TOX
-//                    }
-//                    steps {
-//                        runTox()
-//                    }
-//                }
+                stage('Tox'){
+                    when{
+                        equals expected: true, actual: params.TEST_RUN_TOX
+                    }
+                    options {
+                        lock(env.JOB_URL)
+                    }
+                    steps {
+                        script{
+                            def windowsJobs
+                            def linuxJobs
+                            stage('Scanning Tox Environments'){
+                                parallel(
+                                    'Linux':{
+                                        linuxJobs = getToxTestsParallel(
+                                                envNamePrefix: 'Tox Linux',
+                                                label: 'linux && docker',
+                                                dockerfile: 'ci/docker/linux/tox/Dockerfile',
+                                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg PIP_DOWNLOAD_CACHE=/.cache/pip',
+                                                dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip',
+                                                retry: 2
+                                            )
+                                    },
+                                    'Windows':{
+                                        windowsJobs = getToxTestsParallel(
+                                                envNamePrefix: 'Tox Windows',
+                                                label: 'windows && docker',
+                                                dockerfile: 'ci/docker/windows/tox/Dockerfile',
+                                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip',
+                                                dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip',
+                                                retry: 2
+
+                                            )
+                                    },
+                                    failFast: true
+                                )
+                            }
+                            stage('Run Tox'){
+                                parallel(windowsJobs + linuxJobs)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
