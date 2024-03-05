@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 import speedwagon
-from speedwagon_uiucpreson import workflow_validate_metadata, tasks
+from speedwagon_uiucprescon import workflow_validate_metadata, tasks
 
 import os
 

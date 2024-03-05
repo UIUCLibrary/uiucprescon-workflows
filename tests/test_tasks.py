@@ -2,7 +2,7 @@ from unittest.mock import Mock, MagicMock
 
 import pytest
 import os
-from speedwagon_uiucpreson import tasks
+from speedwagon_uiucprescon import tasks
 
 
 def test_make_yaml_task_calls_make_yaml(monkeypatch):

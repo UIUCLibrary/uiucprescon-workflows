@@ -5,7 +5,7 @@ from uiucprescon import packager
 import speedwagon
 import speedwagon.exceptions
 
-from speedwagon_uiucpreson \
+from speedwagon_uiucprescon \
     import workflow_capture_one_to_dl_compound_and_dl as ht_wf
 
 import os.path

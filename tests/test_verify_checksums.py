@@ -5,7 +5,7 @@ import pytest
 
 import speedwagon
 # from speedwagon.frontend.qtwidgets import models
-from speedwagon_uiucpreson import workflow_verify_checksums
+from speedwagon_uiucprescon import workflow_verify_checksums
 
 
 class TestSensitivityComparison:

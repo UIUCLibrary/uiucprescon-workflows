@@ -5,7 +5,7 @@ import pytest
 import os.path
 
 import speedwagon
-from speedwagon_uiucpreson import workflow_ocr
+from speedwagon_uiucprescon import workflow_ocr
 from speedwagon.exceptions import MissingConfiguration, SpeedwagonException
 from uiucprescon.ocr import reader, tesseractwrap
 
@@ -330,7 +330,7 @@ class TestGenerateOCRFileTask:
             tesseract_path=tesseract_path
         )
         m = mock_open()
-        with patch('speedwagon_uiucpreson.workflow_ocr.open', m):
+        with patch('speedwagon_uiucprescon.workflow_ocr.open', m):
             assert task.work() is True
         assert m.called is True
 

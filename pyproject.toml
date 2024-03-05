@@ -3,14 +3,14 @@ requires = ["setuptools>=57.6.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "speedwagon-uiucpreson"
+name = "speedwagon-uiucprescon"
 version = "0.0.1.dev0"
 dependencies = [
     "speedwagon>=0.4.0a1"
 ]
 
 [project.entry-points.'speedwagon.plugins']
-#uiucprescon_workflows = 'speedwagon_uiucpreson:uiucprescon_plugin'
-uiucprescon_active_workflows = 'speedwagon_uiucpreson.active_workflows'
-uiucprescon_deprecated_workflows = 'speedwagon_uiucpreson.deprecated_workflows'
-#uiucprescon_plugin_deprecated = 'speedwagon_uiucpreson:uiucprescon_plugin_deprecated'
+#uiucprescon_workflows = 'speedwagon_uiucprecson:uiucprescon_plugin'
+uiucprescon_active_workflows = 'speedwagon_uiucprescon.active_workflows'
+uiucprescon_deprecated_workflows = 'speedwagon_uiucprescon.deprecated_workflows'
+#uiucprescon_plugin_deprecated = 'speedwagon_uiucprecson:uiucprescon_plugin_deprecated'

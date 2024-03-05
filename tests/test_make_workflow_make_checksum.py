@@ -4,7 +4,7 @@ from unittest.mock import Mock, ANY
 import pytest
 
 import speedwagon
-from speedwagon_uiucpreson import workflow_make_checksum, tasks
+from speedwagon_uiucprescon import workflow_make_checksum, tasks
 # from speedwagon.frontend.qtwidgets import models
 
 

@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 
 import pytest
-from speedwagon_uiucpreson import workflow_validate_hathi_metadata
+from speedwagon_uiucprescon import workflow_validate_hathi_metadata
 
 
 class TestValidateImageMetadataWorkflow:

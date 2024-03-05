@@ -13,9 +13,9 @@ from uiucprescon import packager
 import speedwagon
 import speedwagon.exceptions
 
-from speedwagon_uiucpreson import tasks
+from speedwagon_uiucprescon import tasks
 from speedwagon.frontend import interaction
-from speedwagon_uiucpreson import workflow_get_marc
+from speedwagon_uiucprescon import workflow_get_marc
 if typing.TYPE_CHECKING:
     from speedwagon.workflow import AbsOutputOptionDataType
     from speedwagon.config import SettingsData

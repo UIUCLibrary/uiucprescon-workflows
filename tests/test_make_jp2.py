@@ -2,7 +2,7 @@ import os
 from unittest.mock import Mock
 import pytest
 import speedwagon
-from speedwagon_uiucpreson import workflow_make_jp2
+from speedwagon_uiucprescon import workflow_make_jp2
 
 
 @pytest.mark.parametrize("index,label", [

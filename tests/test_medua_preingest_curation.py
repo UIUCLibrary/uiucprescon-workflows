@@ -4,7 +4,7 @@ from unittest.mock import Mock, MagicMock
 
 import pytest
 
-from speedwagon_uiucpreson import workflow_medusa_preingest
+from speedwagon_uiucprescon import workflow_medusa_preingest
 from speedwagon.frontend import interaction
 import speedwagon
 from speedwagon.tasks import filesystem as filesystem_tasks

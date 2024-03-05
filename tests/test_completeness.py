@@ -4,7 +4,7 @@ from unittest.mock import Mock, MagicMock
 import pytest
 
 import speedwagon
-from speedwagon_uiucpreson import workflow_completeness
+from speedwagon_uiucprescon import workflow_completeness
 from hathi_validate import process, validator
 
 

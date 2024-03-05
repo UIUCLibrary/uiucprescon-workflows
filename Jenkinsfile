@@ -484,7 +484,7 @@ pipeline {
                             filename 'ci/docker/linux/jenkins/Dockerfile'
                             label 'linux && docker && x86'
                             additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-                            args '--mount source=sonar-cache-uiucpreson_workflows,target=/opt/sonar/.sonar/cache'
+                            args '--mount source=sonar-cache-uiucprescon_workflows,target=/opt/sonar/.sonar/cache'
                           }
                     }
                     options {
@@ -504,7 +504,7 @@ pipeline {
                                             steps{
                                                 catchError(buildResult: 'UNSTABLE', message: 'Did not pass all pytest tests', stageResult: 'UNSTABLE') {
                                                     sh(
-                                                        script: 'PYTHONFAULTHANDLER=1 coverage run --parallel-mode --source=speedwagon_uiucpreson -m pytest --junitxml=./reports/tests/pytest/pytest-junit.xml --capture=no'
+                                                        script: 'PYTHONFAULTHANDLER=1 coverage run --parallel-mode --source=speedwagon_uiucprescon -m pytest --junitxml=./reports/tests/pytest/pytest-junit.xml --capture=no'
                                                     )
                                                 }
                                             }
@@ -517,7 +517,7 @@ pipeline {
                                         }
                                         stage('Task Scanner'){
                                             steps{
-                                                recordIssues(tools: [taskScanner(highTags: 'FIXME', includePattern: 'speedwagon_uiucpreson/**/*.py', normalTags: 'TODO')])
+                                                recordIssues(tools: [taskScanner(highTags: 'FIXME', includePattern: 'speedwagon_uiucprescon/**/*.py', normalTags: 'TODO')])
                                             }
                                         }
 //                                        stage('Audit Requirement Freeze File'){
@@ -547,7 +547,7 @@ pipeline {
                                                 catchError(buildResult: 'SUCCESS', message: 'MyPy found issues', stageResult: 'UNSTABLE') {
                                                     tee('logs/mypy.log'){
                                                         sh(label: 'Running MyPy',
-                                                           script: 'mypy -p speedwagon_uiucpreson --html-report reports/mypy/html'
+                                                           script: 'mypy -p speedwagon_uiucprescon --html-report reports/mypy/html'
                                                         )
                                                     }
                                                 }
@@ -563,11 +563,11 @@ pipeline {
                                             steps{
                                                 catchError(buildResult: 'SUCCESS', message: 'Pylint found issues', stageResult: 'UNSTABLE') {
                                                     sh(label: 'Running pylint',
-                                                        script: 'pylint speedwagon_uiucpreson -r n --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" > reports/pylint.txt'
+                                                        script: 'pylint speedwagon_uiucprescon -r n --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" > reports/pylint.txt'
                                                     )
                                                 }
                                                 sh(
-                                                    script: 'pylint speedwagon_uiucpreson -r n --msg-template="{path}:{module}:{line}: [{msg_id}({symbol}), {obj}] {msg}" | tee reports/pylint_issues.txt',
+                                                    script: 'pylint speedwagon_uiucprescon -r n --msg-template="{path}:{module}:{line}: [{msg_id}({symbol}), {obj}] {msg}" | tee reports/pylint_issues.txt',
                                                     label: 'Running pylint for sonarqube',
                                                     returnStatus: true
                                                 )
@@ -582,7 +582,7 @@ pipeline {
                                         stage('Run Flake8 Static Analysis') {
                                             steps{
                                                 catchError(buildResult: 'SUCCESS', message: 'Flake8 found issues', stageResult: 'UNSTABLE') {
-                                                    sh script: 'flake8 speedwagon_uiucpreson -j 1 --tee --output-file=logs/flake8.log'
+                                                    sh script: 'flake8 speedwagon_uiucprescon -j 1 --tee --output-file=logs/flake8.log'
                                                 }
                                             }
                                             post {
@@ -598,7 +598,7 @@ pipeline {
                                                     sh(
                                                         label: 'Run pydocstyle',
                                                         script: '''mkdir -p reports
-                                                                   pydocstyle speedwagon_uiucpreson > reports/pydocstyle-report.txt
+                                                                   pydocstyle speedwagon_uiucprescon > reports/pydocstyle-report.txt
                                                                    '''
                                                     )
                                                 }
