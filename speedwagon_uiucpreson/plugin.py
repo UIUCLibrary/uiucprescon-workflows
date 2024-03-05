@@ -6,7 +6,7 @@ import speedwagon
 if typing.TYPE_CHECKING:
     from speedwagon.config import SettingsData
 
-from speedwagon.plugins import Plugin
+# from speedwagon.plugins import Plugin
 from speedwagon.tasks.system import AbsSystemTask
 from speedwagon.config import (
     WorkflowSettingsYAMLResolver,
@@ -133,16 +133,16 @@ class TesseractConfigSetupTask(AbsSystemTask):
         return 'Setting up Tesseract data configuration settings.'
 
 
-def register_active_plugin() -> Plugin:
-    new_plugin = Plugin()
-    for workflow in active_workflows:
-        new_plugin.register_workflow(workflow)
-    new_plugin.register_plugin_startup_task(TesseractConfigSetupTask())
-    return new_plugin
-
-
-def register_deprecated_plugin() -> Plugin:
-    new_plugin = Plugin()
-    for workflow in deprecated_workflows:
-        new_plugin.register_workflow(workflow)
-    return new_plugin
+# def register_active_plugin() -> Plugin:
+#     new_plugin = Plugin()
+#     for workflow in active_workflows:
+#         new_plugin.register_workflow(workflow)
+#     new_plugin.register_plugin_startup_task(TesseractConfigSetupTask())
+#     return new_plugin
+#
+#
+# def register_deprecated_plugin() -> Plugin:
+#     new_plugin = Plugin()
+#     for workflow in deprecated_workflows:
+#         new_plugin.register_workflow(workflow)
+#     return new_plugin

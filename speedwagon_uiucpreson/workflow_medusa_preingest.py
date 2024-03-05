@@ -7,8 +7,9 @@ Added on 3/30/2022
 
 import abc
 import os
+import pathlib
 import typing
-from typing import List, Any, Dict, Optional, Set, Iterator, Union, Callable
+from typing import List, Any, Dict, Optional, Iterator, Union, Callable
 from pathlib import Path
 import speedwagon
 from speedwagon import workflow, tasks
@@ -60,6 +61,23 @@ class MedusaPreingestCuration(speedwagon.Workflow):
             check(user_args)
         return True
 
+    @staticmethod
+    def _build_task(item: pathlib.Path):
+        if item.is_dir():
+            return {
+                "type": "directory",
+                "path": str(item)
+            }
+        if item.is_file():
+            return {
+                "type": "file",
+                "path": str(item),
+            }
+        raise RuntimeError(
+            f'not sure what to do. "{item}" is not '
+            f'considered a file or a directory.'
+        )
+
     def discover_task_metadata(
             self,
             initial_results: List[Any],
@@ -68,19 +86,23 @@ class MedusaPreingestCuration(speedwagon.Workflow):
     ) -> List[dict]:
         """Organize the order the files & directories should be removed."""
         new_tasks: List[Dict[str, str]] = []
+        to_remove: typing.Set[str] = set()
 
-        for file_path in additional_data["files"]:
-            new_tasks.append({
-                "type": "file",
-                "path": file_path
-            })
-
-        for directory_path in additional_data['directories']:
-            new_tasks.append({
-                "type": "directory",
-                "path": directory_path
-            })
-
+        for item in additional_data.get('to remove', []):
+            if str(item) in to_remove:
+                continue
+            if os.path.isdir(item):
+                for child_item in get_contents_of_folder_for_removal(item):
+                    if str(child_item) in to_remove:
+                        continue
+                    new_tasks.append(self._build_task(child_item))
+                    to_remove.add(str(child_item))
+            elif os.path.isfile(item):
+                new_tasks.append({
+                    "type": "file",
+                    "path": item,
+                })
+            to_remove.add(item)
         return new_tasks
 
     def get_additional_info(
@@ -93,9 +115,13 @@ class MedusaPreingestCuration(speedwagon.Workflow):
         confirm = \
             user_request_factory.confirm_removal()
 
-        return self.sort_item_data(
-            confirm.get_user_response(options, pretask_results)['items']
-        )
+        return {
+            "to remove": [
+                os.path.join(str(options['Path']), item)
+                for item in
+                confirm.get_user_response(options, pretask_results)['items']
+            ]
+        }
 
     @staticmethod
     def sort_item_data(data: List[str]) -> Dict[str, List[str]]:
@@ -233,6 +259,14 @@ class DotUnderScoreChecker(AbsChecker):  # pylint: disable=R0903
         return not path.name.startswith("._")
 
 
+class CaptureOneChecker(AbsChecker):
+
+    def is_valid(self, path: Path) -> bool:
+        if not path.is_dir():
+            return True
+        return path.name != "CaptureOne"
+
+
 class OffendingPathDecider(AbsPathItemDecision):
 
     def __init__(self) -> None:
@@ -249,13 +283,15 @@ class FindOffendingFiles(tasks.Subtask):
 
     def __init__(self, **user_args) -> None:
         super().__init__()
+        self.filesystem_locator_strategy = FilesystemItemLocator()
 
         self.root: str = user_args['Path']
         self._include_subdirectory = user_args['Include Subdirectories']
 
-        self._locate_capture_one: bool = \
-            user_args['Locate and delete Capture One files']
         self.file_deciding_strategy = OffendingPathDecider()
+
+        if user_args['Locate and delete Capture One files']:
+            self.file_deciding_strategy.add_checker(CaptureOneChecker())
 
         if user_args['Locate and delete dot underscore files']:
             self.file_deciding_strategy.add_checker(DotUnderScoreChecker())
@@ -269,56 +305,27 @@ class FindOffendingFiles(tasks.Subtask):
     def task_description(self) -> Optional[str]:
         return f"Searching {self.root}"
 
-    @staticmethod
-    def locate_folders(
-            starting_dir: str,
-            recursive: bool = True
-    ) -> typing.Iterable[str]:
-        if not recursive:
-            item: 'os.DirEntry[str]'
-            for item in filter(lambda x: x.is_dir(), os.scandir(starting_dir)):
-                yield item.path
-        else:
-            for root, dirs, _ in os.walk(starting_dir):
-                for dir_name in dirs:
-                    yield os.path.join(root, dir_name)
-
     def work(self) -> bool:
         self.set_results(self.locate_results())
         return True
 
-    def locate_results(self) -> Set[str]:
-        offending_item: Set[str] = set()
-        if not os.path.exists(self.root):
-            raise FileNotFoundError(f"Could not find {self.root}")
+    def locate_results(self) -> List[str]:
+        return [
+            item
+            for item in self.filesystem_locator_strategy.locate(self.root)
+            if self.file_deciding_strategy.is_offending(
+                Path(self.root) / Path(item)
+            )
+        ]
 
-        for dir_name in self.locate_folders(self.root):
-            relative_dir_to_root = \
-                os.path.relpath(
-                    dir_name,
-                    start=self.root
-                )
-            self.log(f"Searching {relative_dir_to_root}")
 
-            for item in self.locate_offending_files_and_folders(dir_name):
-                offending_item.add(item)
-        return offending_item
+class FilesystemItemLocator:
 
-    def locate_offending_subdirectories(self, root_dir: str) -> Iterator[str]:
-        if self._locate_capture_one is True:
-            yield from find_capture_one_data(root_dir)
-
-    def locate_offending_files(self, root_dir: str) -> Iterator[str]:
-        for item in filter(lambda i: i.is_file(), os.scandir(root_dir)):
-            if self.file_deciding_strategy.is_offending(Path(item.path)):
-                yield item.path
-
-    def locate_offending_files_and_folders(
-            self,
-            directory: str
-    ) -> Iterator[str]:
-        yield from self.locate_offending_subdirectories(directory)
-        yield from self.locate_offending_files(directory)
+    def locate(self, path: str) -> Iterator[str]:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Could not find {path}")
+        for item in get_contents_of_folder_for_removal(path):
+            yield os.path.relpath(item, start=path)
 
 
 def find_capture_one_data(directory: str) -> Iterator[str]:
@@ -332,3 +339,23 @@ def find_capture_one_data(directory: str) -> Iterator[str]:
             for dir_name in dirs:
                 yield os.path.join(root, dir_name)
         yield potential_capture_one_dir_name
+
+
+def get_contents_of_folder_for_removal(
+    root: Union[Path, str]
+) -> Iterator[Path]:
+    """Locate files and folders in the path.
+
+    This function guarantees that the content of a folder is listed before
+    the folder itself. This is to help delete items in the right order.
+    """
+    root = Path(root)
+    files = []
+
+    for item in root.iterdir():
+        if item.is_dir():
+            yield from get_contents_of_folder_for_removal(item)
+        else:
+            files.append(item)
+    yield from files
+    yield root

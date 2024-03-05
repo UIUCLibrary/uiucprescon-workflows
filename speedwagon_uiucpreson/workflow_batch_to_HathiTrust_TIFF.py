@@ -12,7 +12,7 @@ from uiucprescon import packager
 
 import speedwagon
 import speedwagon.exceptions
-# import speedwagon.tasks.packaging
+
 from speedwagon_uiucpreson import tasks
 from speedwagon.frontend import interaction
 from speedwagon_uiucpreson import workflow_get_marc
