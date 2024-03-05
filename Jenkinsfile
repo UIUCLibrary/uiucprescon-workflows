@@ -410,8 +410,8 @@ pipeline {
     agent none
     parameters {
         booleanParam(name: 'RUN_CHECKS', defaultValue: true, description: 'Run checks on code')
-//        booleanParam(name: 'USE_SONARQUBE', defaultValue: true, description: 'Send data test data to SonarQube')
-//        credentials(name: 'SONARCLOUD_TOKEN', credentialType: 'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl', defaultValue: 'sonarcloud_token', required: false)
+        booleanParam(name: 'USE_SONARQUBE', defaultValue: true, description: 'Send data test data to SonarQube')
+        credentials(name: 'SONARCLOUD_TOKEN', credentialType: 'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl', defaultValue: 'sonarcloud_token', required: false)
         booleanParam(name: 'TEST_RUN_TOX', defaultValue: false, description: 'Run Tox Tests')
         booleanParam(name: 'BUILD_PACKAGES', defaultValue: false, description: 'Build Packages')
 //        booleanParam(name: 'TEST_STANDALONE_PACKAGE_DEPLOYMENT', defaultValue: true, description: 'Test deploying any packages that are designed to be installed without using Python directly')
@@ -621,64 +621,64 @@ pipeline {
                             }
 
                         }
-//                        stage('Run Sonarqube Analysis'){
-//                            options{
-//                                lock('speedwagon-sonarscanner')
-//                            }
-//                            when{
-//                                allOf{
-//                                    equals expected: true, actual: params.USE_SONARQUBE
-//                                    expression{
-//                                        try{
-//                                            withCredentials([string(credentialsId: params.SONARCLOUD_TOKEN, variable: 'dddd')]) {
-//                                                echo 'Found credentials for sonarqube'
-//                                            }
-//                                        } catch(e){
-//                                            return false
-//                                        }
-//                                        return true
-//                                    }
-//                                }
-//                            }
-//                            steps{
-//                                script{
-//                                    def sonarqube = load('ci/jenkins/scripts/sonarqube.groovy')
-//                                    def sonarqubeConfig = [
-//                                                installationName: 'sonarcloud',
-//                                                credentialsId: params.SONARCLOUD_TOKEN,
-//                                            ]
-//                                    milestone label: 'sonarcloud'
-//                                    if (env.CHANGE_ID){
-//                                        sonarqube.submitToSonarcloud(
-//                                            artifactStash: 'sonarqube artifacts',
-//                                            sonarqube: sonarqubeConfig,
-//                                            pullRequest: [
-//                                                source: env.CHANGE_ID,
-//                                                destination: env.BRANCH_NAME,
-//                                            ],
-//                                            package: [
-//                                                version: props.version,
-//                                                name: props.name
-//                                            ],
-//                                        )
-//                                    } else {
-//                                        sonarqube.submitToSonarcloud(
-//                                            artifactStash: 'sonarqube artifacts',
-//                                            sonarqube: sonarqubeConfig,
-//                                            package: [
-//                                                version: props.version,
-//                                                name: props.name
-//                                            ]
-//                                        )
-//                                    }
-//                                }
-//                            }
-//                            post {
-//                                always{
-//                                    recordIssues(tools: [sonarQube(pattern: 'reports/sonar-report.json')])
-//                                }
-//                            }
-//                        }
+                        stage('Run Sonarqube Analysis'){
+                            options{
+                                lock('uiucpreson_workflows-sonarscanner')
+                            }
+                            when{
+                                allOf{
+                                    equals expected: true, actual: params.USE_SONARQUBE
+                                    expression{
+                                        try{
+                                            withCredentials([string(credentialsId: params.SONARCLOUD_TOKEN, variable: 'dddd')]) {
+                                                echo 'Found credentials for sonarqube'
+                                            }
+                                        } catch(e){
+                                            return false
+                                        }
+                                        return true
+                                    }
+                                }
+                            }
+                            steps{
+                                script{
+                                    def sonarqube = load('ci/jenkins/scripts/sonarqube.groovy')
+                                    def sonarqubeConfig = [
+                                        installationName: 'sonarcloud',
+                                        credentialsId: params.SONARCLOUD_TOKEN,
+                                    ]
+                                    milestone label: 'sonarcloud'
+                                    if (env.CHANGE_ID){
+                                        sonarqube.submitToSonarcloud(
+                                            artifactStash: 'sonarqube artifacts',
+                                            sonarqube: sonarqubeConfig,
+                                            pullRequest: [
+                                                source: env.CHANGE_ID,
+                                                destination: env.BRANCH_NAME,
+                                            ],
+                                            package: [
+                                                version: props.version,
+                                                name: props.name
+                                            ],
+                                        )
+                                    } else {
+                                        sonarqube.submitToSonarcloud(
+                                            artifactStash: 'sonarqube artifacts',
+                                            sonarqube: sonarqubeConfig,
+                                            package: [
+                                                version: props.version,
+                                                name: props.name
+                                            ]
+                                        )
+                                    }
+                                }
+                            }
+                            post {
+                                always{
+                                    recordIssues(tools: [sonarQube(pattern: 'reports/sonar-report.json')])
+                                }
+                            }
+                        }
                     }
                     post{
                         cleanup{
