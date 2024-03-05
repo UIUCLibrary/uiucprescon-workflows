@@ -1,0 +1,8 @@
+pytest
+pylint
+coverage
+flake8
+mypy
+pydocstyle
+tox
+pyside6
