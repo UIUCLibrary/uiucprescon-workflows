@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from speedwagon_uiucpreson import workflow_zip_packages
+from speedwagon_uiucprescon import workflow_zip_packages
 
 
 

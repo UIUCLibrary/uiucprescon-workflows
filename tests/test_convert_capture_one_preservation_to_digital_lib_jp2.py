@@ -3,8 +3,8 @@ import speedwagon
 import pytest
 
 
-from speedwagon_uiucpreson import \
-    workflow_convertCaptureOnePreservationToDigitalLibJP2 as \
+from speedwagon_uiucprescon import \
+    workflow_convertCapOnePresToDigitalLibJP2 as \
     capture_one_workflow
 
 

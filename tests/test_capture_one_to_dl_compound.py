@@ -5,7 +5,7 @@ import pytest
 
 import speedwagon
 import speedwagon.validators
-from speedwagon_uiucpreson import workflow_capture_one_to_dl_compound as ht_wf
+from speedwagon_uiucprescon import workflow_capture_one_to_dl_compound as ht_wf
 import os.path
 
 import uiucprescon.packager.packages

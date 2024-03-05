@@ -2,7 +2,7 @@ import warnings
 from unittest.mock import Mock, MagicMock
 
 import pytest
-from speedwagon_uiucpreson import workflow_capture_one_to_hathi
+from speedwagon_uiucprescon import workflow_capture_one_to_hathi
 
 
 class TestCaptureOneToHathiTiffPackageWorkflow:

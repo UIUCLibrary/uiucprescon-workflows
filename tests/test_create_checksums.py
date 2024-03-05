@@ -1,4 +1,4 @@
-from speedwagon_uiucpreson.workflow_make_checksum import \
+from speedwagon_uiucprescon.workflow_make_checksum import \
     MakeChecksumBatchSingleWorkflow, MakeChecksumBatchMultipleWorkflow
 
 

@@ -22,7 +22,7 @@ from .workflow_capture_one_to_dl_compound_and_dl import (
     CaptureOneToDlCompoundAndDLWorkflow,
 )
 from .workflow_completeness import CompletenessWorkflow
-from .workflow_convertCaptureOnePreservationToDigitalLibJP2 import (
+from .workflow_convertCapOnePresToDigitalLibJP2 import (
     ConvertTiffPreservationToDLJp2Workflow,
 )
 from .workflow_hathi_limited_to_dl_compound import (

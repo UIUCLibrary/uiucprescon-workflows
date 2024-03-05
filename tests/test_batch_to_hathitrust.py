@@ -5,10 +5,10 @@ import pytest
 import shutil
 
 import speedwagon
-from speedwagon_uiucpreson import workflow_batch_to_HathiTrust_TIFF as wf
-from speedwagon_uiucpreson import workflow_hathi_limited_to_dl_compound
-from speedwagon_uiucpreson import tasks
-from speedwagon_uiucpreson import workflow_get_marc
+from speedwagon_uiucprescon import workflow_batch_to_HathiTrust_TIFF as wf
+from speedwagon_uiucprescon import workflow_hathi_limited_to_dl_compound
+from speedwagon_uiucprescon import tasks
+from speedwagon_uiucprescon import workflow_get_marc
 import os
 from uiucprescon.packager.common import Metadata as PackageMetadata
 

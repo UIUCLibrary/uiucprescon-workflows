@@ -8,7 +8,7 @@ import requests
 # import speedwagon
 import speedwagon.exceptions
 import xml.etree.ElementTree as ET
-from speedwagon_uiucpreson import workflow_get_marc
+from speedwagon_uiucprescon import workflow_get_marc
 
 
 @pytest.fixture

@@ -2,7 +2,7 @@ import warnings
 from unittest.mock import Mock, ANY
 
 import pytest
-from speedwagon_uiucpreson import workflow_convertTifftoHathiTrustJP2
+from speedwagon_uiucprescon import workflow_convertTifftoHathiTrustJP2
 
 
 class TestConvertTiffToHathiJp2Workflow:

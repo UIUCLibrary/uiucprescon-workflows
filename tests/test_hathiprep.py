@@ -5,7 +5,7 @@ import pytest
 
 import speedwagon
 from speedwagon.frontend import interaction
-from speedwagon_uiucpreson import workflow_hathiprep, tasks
+from speedwagon_uiucprescon import workflow_hathiprep, tasks
 
 
 @pytest.mark.parametrize("index,label", [

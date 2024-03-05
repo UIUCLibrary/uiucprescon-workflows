@@ -5,7 +5,7 @@ from zipfile import ZipFile
 import pytest
 from uiucprescon import packager
 from uiucprescon.packager.packages.collection import Package
-from speedwagon_uiucpreson.workflow_hathi_limited_to_dl_compound import \
+from speedwagon_uiucprescon.workflow_hathi_limited_to_dl_compound import \
     HathiLimitedToDLWorkflow, PackageConverter
 
 
