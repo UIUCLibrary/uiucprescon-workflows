@@ -404,6 +404,7 @@ def get_props(){
     }
 }
 
+
 props = get_props()
 
 pipeline {
@@ -422,7 +423,7 @@ pipeline {
         booleanParam(name: 'INCLUDE_MACOS_X86_64', defaultValue: false, description: 'Include x86_64 architecture for Mac')
         booleanParam(name: 'INCLUDE_WINDOWS_X86_64', defaultValue: true, description: 'Include x86_64 architecture for Windows')
         booleanParam(name: 'TEST_PACKAGES', defaultValue: true, description: 'Test Python packages by installing them and running tests on the installed package')
-//        booleanParam(name: 'PACKAGE_MAC_OS_STANDALONE_DMG', defaultValue: false, description: 'Create a Apple Application Bundle DMG')
+        booleanParam(name: 'PACKAGE_MAC_OS_STANDALONE_DMG', defaultValue: false, description: 'Create a Apple Application Bundle DMG')
 //        booleanParam(name: 'PACKAGE_WINDOWS_STANDALONE_MSI', defaultValue: false, description: 'Create a standalone wix based .msi installer')
 //        booleanParam(name: 'PACKAGE_WINDOWS_STANDALONE_NSIS', defaultValue: false, description: 'Create a standalone NULLSOFT NSIS based .exe installer')
 //        booleanParam(name: 'PACKAGE_WINDOWS_STANDALONE_ZIP', defaultValue: false, description: 'Create a standalone portable package')
@@ -743,7 +744,7 @@ pipeline {
                     anyOf{
                         equals expected: true, actual: params.BUILD_PACKAGES
 //                        equals expected: true, actual: params.BUILD_CHOCOLATEY_PACKAGE
-//                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
 //                        equals expected: true, actual: params.DEPLOY_STANDALONE_PACKAGES
                         equals expected: true, actual: params.DEPLOY_DEVPI
                         equals expected: true, actual: params.DEPLOY_DEVPI_PRODUCTION
@@ -803,74 +804,82 @@ pipeline {
                             }
                         }
                     }
-//                    stage('End-user packages'){
-//                        parallel{
-//                            stage('Mac Application Bundle x86_64'){
-//                                agent{
-//                                    label 'mac && python3 && x86_64'
-//                                }
-//                                when{
-//                                    allOf{
-//                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-//                                        expression {return nodesByLabel('mac && x86_64 && python3').size() > 0}
-//                                    }
-//                                    beforeInput true
-//                                }
-//                                steps{
-//                                    script{
-//                                        macAppleBundle()
-//                                    }
-//                                }
-//                                post{
-//                                    success{
-//                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-//                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
-//                                    }
-//                                    cleanup{
-//                                        cleanWs(
-//                                            deleteDirs: true,
-//                                            patterns: [
-//                                                [pattern: 'dist/', type: 'INCLUDE'],
-//                                                [pattern: 'build/', type: 'INCLUDE'],
-//                                                [pattern: 'venv/', type: 'INCLUDE'],
-//                                            ]
-//                                        )
-//                                    }
-//                                }
-//                            }
-//                            stage('Mac Application Bundle M1'){
-//                                agent{
-//                                    label 'mac && python3 && arm64'
-//                                }
-//                                when{
-//                                    allOf{
-//                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-//                                        expression {return nodesByLabel('mac && arm64 && python3').size() > 0}
-//                                    }
-//                                    beforeInput true
-//                                }
-//                                steps{
-//                                    script{
-//                                        macAppleBundle()
-//                                    }
-//                                }
-//                                post{
-//                                    success{
-//                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-//                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
-//                                    }
-//                                    cleanup{
-//                                        cleanWs(
-//                                            deleteDirs: true,
-//                                            patterns: [
-//                                                [pattern: 'dist/', type: 'INCLUDE'],
-//                                                [pattern: 'build/', type: 'INCLUDE'],
-//                                                [pattern: 'venv/', type: 'INCLUDE'],
-//                                            ]
-//                                        )
-//                                    }
-//                                }
-//                            }
+                    stage('End-user packages'){
+                        parallel{
+                            stage('Mac Application Bundle x86_64'){
+                                agent{
+                                    label 'mac && python3.11 && x86_64'
+                                }
+                                when{
+                                    allOf{
+                                        equals expected: true, actual: params.INCLUDE_MACOS_X86_64
+                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                                        expression {return nodesByLabel('mac && python3.11 && x86_64').size() > 0}
+                                    }
+                                    beforeInput true
+                                }
+                                steps{
+                                    unstash 'PYTHON_PACKAGES'
+                                    script{
+                                        findFiles(glob: 'dist/*.whl').each{ wheel ->
+                                            sh "./contrib/make_osx_dist.sh --using-wheel ${wheel} --base-python python3.11"
+                                        }
+                                    }
+                                }
+                                post{
+                                    success{
+                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                    }
+                                    cleanup{
+                                        cleanWs(
+                                            deleteDirs: true,
+                                            patterns: [
+                                                [pattern: 'dist/', type: 'INCLUDE'],
+                                                [pattern: 'build/', type: 'INCLUDE'],
+                                                [pattern: 'venv/', type: 'INCLUDE'],
+                                            ]
+                                        )
+                                    }
+                                }
+                            }
+                            stage('Mac Application Bundle M1'){
+                                agent{
+                                    label 'mac && python3.11 && arm64'
+                                }
+                                when{
+                                    allOf{
+                                        equals expected: true, actual: params.INCLUDE_MACOS_ARM
+                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                                        expression {return nodesByLabel('mac && python3.11 && arm64').size() > 0}
+                                    }
+                                    beforeInput true
+                                }
+                                steps{
+                                    script{
+                                        unstash 'PYTHON_PACKAGES'
+                                        findFiles(glob: 'dist/*.whl').each{ wheel ->
+                                            sh "./contrib/make_osx_dist.sh --using-wheel ${wheel} --base-python python3.11"
+                                        }
+                                    }
+                                }
+                                post{
+                                    success{
+                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
+                                    }
+                                    cleanup{
+                                        cleanWs(
+                                            deleteDirs: true,
+                                            patterns: [
+                                                [pattern: 'dist/', type: 'INCLUDE'],
+                                                [pattern: 'build/', type: 'INCLUDE'],
+                                                [pattern: 'venv/', type: 'INCLUDE'],
+                                            ]
+                                        )
+                                    }
+                                }
+                            }
 //                            stage('Chocolatey'){
 //                                when{
 //                                    anyOf{
@@ -1092,8 +1101,8 @@ pipeline {
 //                                }
 //                            }
 //                        }
-//                    }
-//                }
+                    }
+                }
                 stage('Deploy to Devpi'){
                     when {
                         allOf{
