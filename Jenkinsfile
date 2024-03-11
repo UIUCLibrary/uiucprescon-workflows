@@ -7,6 +7,47 @@ SUPPORTED_MAC_VERSIONS = ['3.9', '3.10', '3.11']
 SUPPORTED_LINUX_VERSIONS = ['3.8', '3.9', '3.10', '3.11']
 SUPPORTED_WINDOWS_VERSIONS = ['3.8', '3.9', '3.10', '3.11']
 
+def getChocolateyServers() {
+    retry(conditions: [agent()], count: 3) {
+        node(){
+            configFileProvider([configFile(fileId: 'deploymentStorageConfig', variable: 'CONFIG_FILE')]) {
+                def config = readJSON( file: CONFIG_FILE)
+                return config['chocolatey']['sources']
+            }
+        }
+    }
+}
+def deploy_to_chocolatey(ChocolateyServer){
+    script{
+        def pkgs = []
+        findFiles(glob: "packages/*.nupkg").each{
+            pkgs << it.path
+        }
+        def deployment_options = input(
+            message: 'Chocolatey server',
+            parameters: [
+                credentials(
+                    credentialType: 'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl',
+                    defaultValue: 'NEXUS_NUGET_API_KEY',
+                    description: 'Nuget API key for Chocolatey',
+                    name: 'CHOCO_REPO_KEY',
+                    required: true
+                ),
+                choice(
+                    choices: pkgs,
+                    description: 'Package to use',
+                    name: 'NUPKG'
+                ),
+            ]
+        )
+        withCredentials([string(credentialsId: deployment_options['CHOCO_REPO_KEY'], variable: 'KEY')]) {
+            bat(
+                label: "Deploying ${deployment_options['NUPKG']} to Chocolatey",
+                script: "choco push ${deployment_options['NUPKG']} -s ${ChocolateyServer} -k %KEY%"
+            )
+        }
+    }
+}
 
 def getDevpiConfig() {
     retry(conditions: [agent()], count: 3) {
@@ -387,6 +428,39 @@ def getMacDevpiTestStages(packageName, packageVersion, pythonVersions, devpiServ
     return macPackageStages;
 }
 
+
+def sanitize_chocolatey_version(version){
+    script{
+        def dot_to_slash_pattern = '(?<=\\d)\\.?(?=(dev|b|a|rc|post)(\\d)?)'
+
+//        def rc_pattern = "(?<=\d(\.?))rc((?=\d)?)"
+        def dashed_version = version.replaceFirst(dot_to_slash_pattern, "-")
+        if ( version =~ /dev/ ) {
+            return version.replace('.dev', "-dev")
+        }
+        dashed_version = version.replaceFirst('\\.post', ".")
+        def dev_pattern = '(?<=\\d(\\.?))dev((?=\\d)?)'
+        if(dashed_version.matches(dev_pattern)){
+            echo "Discovered a development version"
+            return dashed_version.replaceFirst(dev_pattern, "-dev")
+        }
+
+        if(version.matches('(([0-9]+(([.])?))+)b([0-9]+)')){
+            echo 'Discovered a beta version'
+            return dashed_version.replaceFirst('([.]?b)', "-beta")
+        }
+
+        def alpha_pattern = '(?<=\\d(\\.?))a((?=\\d)?)'
+        if(dashed_version.matches(alpha_pattern)){
+            echo "Discovered an Alpha version"
+            return dashed_version.replaceFirst(alpha_pattern, "alpha")
+        }
+        echo "Discovered no special version info"
+        return dashed_version
+    }
+}
+
+
 def get_props(){
     stage('Reading Package Metadata'){
         node('docker && linux') {
@@ -416,7 +490,7 @@ pipeline {
         booleanParam(name: 'TEST_RUN_TOX', defaultValue: false, description: 'Run Tox Tests')
         booleanParam(name: 'BUILD_PACKAGES', defaultValue: false, description: 'Build Packages')
 //        booleanParam(name: 'TEST_STANDALONE_PACKAGE_DEPLOYMENT', defaultValue: true, description: 'Test deploying any packages that are designed to be installed without using Python directly')
-//        booleanParam(name: 'BUILD_CHOCOLATEY_PACKAGE', defaultValue: false, description: 'Build package for chocolatey package manager')
+        booleanParam(name: 'BUILD_CHOCOLATEY_PACKAGE', defaultValue: false, description: 'Build package for chocolatey package manager')
         booleanParam(name: 'INCLUDE_LINUX_ARM', defaultValue: false, description: 'Include ARM architecture for Linux')
         booleanParam(name: 'INCLUDE_LINUX_X86_64', defaultValue: true, description: 'Include x86_64 architecture for Linux')
         booleanParam(name: 'INCLUDE_MACOS_ARM', defaultValue: false, description: 'Include ARM(m1) architecture for Mac')
@@ -430,7 +504,7 @@ pipeline {
         booleanParam(name: 'DEPLOY_DEVPI', defaultValue: false, description: "Deploy to DevPi on ${DEVPI_CONFIG.server}/DS_Jenkins/${env.BRANCH_NAME}")
         booleanParam(name: 'DEPLOY_DEVPI_PRODUCTION', defaultValue: false, description: "Deploy to ${DEVPI_CONFIG.server}/production/release")
         booleanParam(name: 'DEPLOY_PYPI', defaultValue: false, description: 'Deploy to pypi')
-//        booleanParam(name: 'DEPLOY_CHOCOLATEY', defaultValue: false, description: 'Deploy to Chocolatey repository')
+        booleanParam(name: 'DEPLOY_CHOCOLATEY', defaultValue: false, description: 'Deploy to Chocolatey repository')
 //        booleanParam(name: 'DEPLOY_STANDALONE_PACKAGERS', defaultValue: false, description: 'Deploy standalone packages')
 //        booleanParam(name: 'DEPLOY_DOCS', defaultValue: false, description: 'Update online documentation')
     }
@@ -743,12 +817,12 @@ pipeline {
                 when{
                     anyOf{
                         equals expected: true, actual: params.BUILD_PACKAGES
-//                        equals expected: true, actual: params.BUILD_CHOCOLATEY_PACKAGE
+                        equals expected: true, actual: params.BUILD_CHOCOLATEY_PACKAGE
                         equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
 //                        equals expected: true, actual: params.DEPLOY_STANDALONE_PACKAGES
                         equals expected: true, actual: params.DEPLOY_DEVPI
                         equals expected: true, actual: params.DEPLOY_DEVPI_PRODUCTION
-//                        equals expected: true, actual: params.DEPLOY_CHOCOLATEY
+                        equals expected: true, actual: params.DEPLOY_CHOCOLATEY
 //                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
 //                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_NSIS
 //                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_ZIP
@@ -880,23 +954,129 @@ pipeline {
                                     }
                                 }
                             }
-//                            stage('Chocolatey'){
-//                                when{
-//                                    anyOf{
-//                                        equals expected: true, actual: params.DEPLOY_CHOCOLATEY
-//                                        equals expected: true, actual: params.BUILD_CHOCOLATEY_PACKAGE
-//                                    }
-//                                    beforeInput true
+                            stage('Chocolatey'){
+                                when{
+                                    anyOf{
+                                        equals expected: true, actual: params.DEPLOY_CHOCOLATEY
+                                        equals expected: true, actual: params.BUILD_CHOCOLATEY_PACKAGE
+                                    }
+                                    beforeInput true
+                                }
+                                stages{
+                                    stage('Build Chocolatey Package'){
+                                        agent {
+                                            dockerfile {
+                                                filename 'ci/docker/windows/tox/Dockerfile'
+                                                label 'windows && docker && x86'
+                                                additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
+                                              }
+                                        }
+                                        stages{
+                                            stage('Building Python Vendored Wheels'){
+                                                steps{
+                                                    withEnv(['PY_PYTHON=3.11']) {
+                                                        bat(
+                                                            label: 'Getting dependencies to vendor',
+                                                            script: '''
+                                                                py -m pip install pip --upgrade
+                                                                py -m pip install wheel
+                                                                py -m pip wheel -r requirements/requirements-vendor.txt --no-deps -w .\\deps\\ -i %PIP_EXTRA_INDEX_URL%
+                                                            '''
+                                                        )
+                                                    }
+                                                    stash includes: 'deps/*.whl', name: 'VENDORED_WHEELS_FOR_CHOCOLATEY'
+                                                }
+                                            }
+                                            stage('Package for Chocolatey'){
+                                                steps{
+                                                    unstash 'PYTHON_PACKAGES'
+                                                    script {
+                                                        def version = sanitize_chocolatey_version(props.version)
+                                                        findFiles(glob: 'dist/*.whl').each{
+                                                            powershell(
+                                                                label: 'Creating new Chocolatey package',
+                                                                script: """contrib/make_chocolatey.ps1 `
+                                                                            -PackageName 'Speedwagon_uiucprescon' `
+                                                                            -PackageSummary \"${props.description}\" `
+                                                                            -StartMenuLinkName 'Speedwagon (UIUC Prescon Prerelease)' `
+                                                                            -PackageVersion ${props.version} `
+                                                                            -PackageMaintainer \"${props.maintainers[0].name}\" `
+                                                                            -Wheel ${it.path} `
+                                                                            -DependenciesDir '.\\deps' `
+                                                                            -Requirements '.\\requirements\\requirements-freeze.txt' `
+                                                                        """
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                post{
+                                                    always{
+                                                        archiveArtifacts artifacts: 'packages/**/*.nuspec,packages/*.nupkg'
+                                                        stash includes: 'packages/*.nupkg', name: 'CHOCOLATEY_PACKAGE'
+                                                    }
+                                                    cleanup{
+                                                        cleanWs(
+                                                            deleteDirs: true,
+                                                            patterns: [
+                                                                [pattern: 'packages/', type: 'INCLUDE']
+                                                                ]
+                                                            )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    stage('Testing Chocolatey Package'){
+                                        agent {
+                                            dockerfile {
+                                                filename 'ci/docker/windows/tox/Dockerfile'
+                                                label 'windows && docker && x86'
+                                                additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
+                                              }
+                                        }
+                                        stages{
+                                            stage('Install Chocolatey Package'){
+                                                steps{
+                                                    unstash 'CHOCOLATEY_PACKAGE'
+                                                    script{
+                                                        def version = sanitize_chocolatey_version(props.version)
+
+                                                        powershell(script: "choco install speedwagon_uiucprescon -y -dv  --version=${sanitize_chocolatey_version(props.version)} -s \'./packages/;CHOCOLATEY_SOURCE;chocolatey\' --no-progress")
+
+
+                                                    }
+                                                }
+                                            }
+                                            stage('Verify Installed Package'){
+                                                steps{
+                                                    powershell(
+                                                        label: 'Checking everything installed correctly',
+                                                        script: 'contrib/ensure_installed_property.ps1 -StartMenuShortCut "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestSpeedwagonVersion -TestInChocolateyList speedwagon_uiucprescon'
+                                                    )
+                                                }
+                                            }
+                                            stage('Uninstall Chocolatey Package'){
+                                                steps{
+                                                    powershell(script: 'choco uninstall speedwagon_uiucprescon -y')
+                                                }
+                                            }
+                                            stage('Verify Uninstalled Package'){
+                                                steps{
+                                                    powershell(script: 'contrib/ensure_uninstalled.ps1 -StartMenuShortCutRemoved "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestInChocolateyList speedwagon_uiucprescon')
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+//                                agent {
+//                                    dockerfile {
+//                                        filename 'ci/docker/windows/tox/Dockerfile'
+//                                        label 'windows && docker && x86'
+//                                        additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
+//                                      }
 //                                }
 //                                stages{
 //                                    stage('Building Python Vendored Wheels'){
-//                                        agent {
-//                                            dockerfile {
-//                                                filename 'ci/docker/python/windows/tox/Dockerfile'
-//                                                label 'windows && docker && x86'
-//                                                additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE'
-//                                              }
-//                                        }
 //                                        steps{
 //                                            withEnv(['PY_PYTHON=3.11']) {
 //                                                bat(
@@ -904,7 +1084,7 @@ pipeline {
 //                                                    script: '''
 //                                                        py -m pip install pip --upgrade
 //                                                        py -m pip install wheel
-//                                                        py -m pip wheel -r requirements-vendor.txt --no-deps -w .\\deps\\ -i %PIP_EXTRA_INDEX_URL%
+//                                                        py -m pip wheel -r requirements/requirements-vendor.txt --no-deps -w .\\deps\\ -i %PIP_EXTRA_INDEX_URL%
 //                                                    '''
 //                                                )
 //                                            }
@@ -912,31 +1092,20 @@ pipeline {
 //                                        }
 //                                    }
 //                                    stage('Package for Chocolatey'){
-//                                        agent {
-//                                            dockerfile {
-//                                                filename 'ci/docker/chocolatey_package/Dockerfile'
-//                                                label 'windows && docker && x86'
-//                                                additionalBuildArgs '--build-arg CHOCOLATEY_SOURCE'
-//                                              }
-//                                        }
 //                                        steps{
-//                                            checkout scm
 //                                            unstash 'PYTHON_PACKAGES'
-//                                            unstash 'VENDORED_WHEELS_FOR_CHOCOLATEY'
 //                                            script {
 //                                                findFiles(glob: 'dist/*.whl').each{
-//                                                    unstash 'SPEEDWAGON_DOC_PDF'
 //                                                    powershell(
 //                                                        label: 'Creating new Chocolatey package',
-//                                                        script: """ci/jenkins/scripts/make_chocolatey.ps1 `
-//                                                                    -PackageName speedwagon `
+//                                                        script: """contrib/make_chocolatey.ps1 `
+//                                                                    -PackageName speedwagon_uiucprescon `
 //                                                                    -PackageSummary \"${props.description}\" `
 //                                                                    -PackageVersion ${props.version} `
 //                                                                    -PackageMaintainer \"${props.maintainers[0].name}\" `
 //                                                                    -Wheel ${it.path} `
 //                                                                    -DependenciesDir '.\\deps' `
-//                                                                    -Requirements '.\\requirements\\requirements-gui-freeze.txt' `
-//                                                                    -DocsDir '.\\dist\\docs'
+//                                                                    -Requirements '.\\requirements\\requirements-freeze.txt' `
 //                                                                """
 //                                                    )
 //                                                }
@@ -959,6 +1128,11 @@ pipeline {
 //                                    }
 //                                    stage('Testing Chocolatey Package'){
 //                                        agent {
+//                                            docker{
+//                                                image 'chocolatey/choco:latest-windows'
+//                                                label 'windows && docker && x86'
+//                                            }
+//                                        }
 //                                            dockerfile {
 //                                                filename 'ci/docker/chocolatey_package/Dockerfile'
 //                                                label 'windows && docker && x86'
@@ -973,7 +1147,9 @@ pipeline {
 //                                            timeout(time: 2, unit: 'HOURS')
 //                                        }
 //                                        steps{
-//                                            testChocolateyPackage()
+//                                            echo 'testing'
+//                                            unstash 'CHOCOLATEY_PACKAGE'
+////                                            testChocolateyPackage()
 //                                        }
 //                                        post{
 //                                            failure{
@@ -993,7 +1169,7 @@ pipeline {
 //                                        }
 //                                    }
 //                                }
-//                            }
+                            }
 //                            stage('Windows Standalone'){
 //                                when{
 //                                    anyOf{
@@ -1398,43 +1574,43 @@ pipeline {
                                 }
                             }
                         }
-//                        stage('Deploy to Chocolatey') {
-//                            when{
-//                                equals expected: true, actual: params.DEPLOY_CHOCOLATEY
-//                                beforeInput true
-//                                beforeAgent true
-//                            }
-//                            agent {
-//                                dockerfile {
-//                                    filename 'ci/docker/chocolatey_package/Dockerfile'
-//                                    label 'windows && docker && x86'
-//                                    additionalBuildArgs '--build-arg CHOCOLATEY_SOURCE'
-//                                  }
-//                            }
-//                            options{
-//                                timeout(time: 1, unit: 'DAYS')
-//                                retry(3)
-//                            }
-//                            input {
-//                                message 'Deploy to Chocolatey server'
-//                                id 'CHOCOLATEY_DEPLOYMENT'
-//                                parameters {
-//                                    choice(
-//                                        choices: getChocolateyServers(),
-//                                        description: 'Chocolatey Server to deploy to',
-//                                        name: 'CHOCOLATEY_SERVER'
-//                                    )
-//                                }
-//                            }
-//                            steps{
-//                                unstash 'CHOCOLATEY_PACKAGE'
+                        stage('Deploy to Chocolatey') {
+                            when{
+                                equals expected: true, actual: params.DEPLOY_CHOCOLATEY
+                                beforeInput true
+                                beforeAgent true
+                            }
+                            agent {
+                                dockerfile {
+                                    filename 'ci/docker/windows/tox/Dockerfile'
+                                    label 'windows && docker && x86'
+                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE'
+                                  }
+                            }
+                            options{
+                                timeout(time: 1, unit: 'DAYS')
+                                retry(3)
+                            }
+                            input {
+                                message 'Deploy to Chocolatey server'
+                                id 'CHOCOLATEY_DEPLOYMENT'
+                                parameters {
+                                    choice(
+                                        choices: getChocolateyServers(),
+                                        description: 'Chocolatey Server to deploy to',
+                                        name: 'CHOCOLATEY_SERVER'
+                                    )
+                                }
+                            }
+                            steps{
+                                unstash 'CHOCOLATEY_PACKAGE'
+                                deploy_to_chocolatey(CHOCOLATEY_SERVER)
 //                                script{
 //                                    def chocolatey = load('ci/jenkins/scripts/chocolatey.groovy')
-//                                    chocolatey.deploy_to_chocolatey(CHOCOLATEY_SERVER)
 //                                }
-//
-//                            }
-//                        }
+
+                            }
+                        }
 //                        stage('Deploy Online Documentation') {
 //                            when{
 //                                equals expected: true, actual: params.DEPLOY_DOCS

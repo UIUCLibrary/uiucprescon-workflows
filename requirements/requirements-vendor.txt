@@ -1,0 +1,9 @@
+pykdu_compress==0.1.9
+pyhathiprep==0.1.10
+py3exiv2bind==0.1.13.post1
+HathiZip==0.1.11
+HathiValidate==0.3.8
+uiucprescon.images==0.0.5
+uiucprescon.imagevalidate==0.1.9.post3
+uiucprescon.ocr==0.1.4.post2
+uiucprescon.packager==0.2.15
