@@ -1,8 +1,9 @@
-pytest
-pylint
 coverage
 flake8
 mypy
 pydocstyle
-tox
+pylint
 pyside6
+pytest
+sphinx
+tox

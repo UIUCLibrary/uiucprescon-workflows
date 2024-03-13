@@ -478,6 +478,33 @@ def get_props(){
     }
 }
 
+def buildSphinx(){
+    def sphinx  = load('ci/jenkins/scripts/sphinx.groovy')
+    sh(script: '''mkdir -p logs
+                  '''
+      )
+
+    sphinx.buildSphinxDocumentation(
+        sourceDir: 'docs',
+        outputDir: 'build/docs/html',
+        doctreeDir: 'build/docs/.doctrees',
+        builder: 'html',
+        writeWarningsToFile: 'logs/build_sphinx_html.log'
+        )
+    sphinx.buildSphinxDocumentation(
+        sourceDir: 'docs',
+        outputDir: 'build/docs/latex',
+        doctreeDir: 'build/docs/.doctrees',
+        builder: 'latex'
+        )
+
+    sh(label: 'Building PDF docs',
+       script: '''make -C build/docs/latex
+                  mkdir -p dist/docs
+                  mv build/docs/latex/*.pdf dist/docs/
+                  '''
+    )
+}
 
 props = get_props()
 
@@ -506,47 +533,48 @@ pipeline {
         booleanParam(name: 'DEPLOY_PYPI', defaultValue: false, description: 'Deploy to pypi')
         booleanParam(name: 'DEPLOY_CHOCOLATEY', defaultValue: false, description: 'Deploy to Chocolatey repository')
 //        booleanParam(name: 'DEPLOY_STANDALONE_PACKAGERS', defaultValue: false, description: 'Deploy standalone packages')
-//        booleanParam(name: 'DEPLOY_DOCS', defaultValue: false, description: 'Update online documentation')
+        booleanParam(name: 'DEPLOY_DOCS', defaultValue: false, description: 'Update online documentation')
     }
     stages {
-//        stage('Build Sphinx Documentation'){
-//            agent {
-//                dockerfile {
-//                    filename 'ci/docker/linux/jenkins/Dockerfile'
-//                    label 'linux && docker && x86'
-//                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-//                  }
-//            }
-//            options {
-//                retry(conditions: [agent()], count: 2)
-//            }
-//            steps {
-//                catchError(buildResult: 'UNSTABLE', message: 'Sphinx has warnings', stageResult: 'UNSTABLE') {
-//                    buildSphinx()
-//                }
-//            }
-//            post{
-//                always{
-//                    recordIssues(tools: [sphinxBuild(pattern: 'logs/build_sphinx_html.log')])
-//                }
-//                success{
-//                    stash includes: 'dist/docs/*.pdf', name: 'SPEEDWAGON_DOC_PDF'
-//                    zip archive: true, dir: 'build/docs/html', glob: '', zipFile: "dist/${props.name}-${props.version}.doc.zip"
-//                    stash includes: 'dist/*.doc.zip,build/docs/html/**', name: 'DOCS_ARCHIVE'
-//                    archiveArtifacts artifacts: 'dist/docs/*.pdf'
-//                }
-//                cleanup{
-//                    cleanWs(
-//                        notFailBuild: true,
-//                        deleteDirs: true,
-//                        patterns: [
-//                            [pattern: 'dist/', type: 'INCLUDE'],
-//                            [pattern: 'build/', type: 'INCLUDE'],
-//                        ]
-//                    )
-//                }
-//            }
-//        }
+        stage('Build Sphinx Documentation'){
+            agent {
+                dockerfile {
+                    filename 'ci/docker/linux/jenkins/Dockerfile'
+                    label 'linux && docker && x86'
+                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
+                    args '--mount source=sonar-cache-uiucprescon_workflows,target=/opt/sonar/.sonar/cache'
+                  }
+            }
+            options {
+                retry(conditions: [agent()], count: 2)
+            }
+            steps {
+                catchError(buildResult: 'UNSTABLE', message: 'Sphinx has warnings', stageResult: 'UNSTABLE') {
+                    buildSphinx()
+                }
+            }
+            post{
+                always{
+                    recordIssues(tools: [sphinxBuild(pattern: 'logs/build_sphinx_html.log')])
+                }
+                success{
+                    stash includes: 'dist/docs/*.pdf', name: 'SPEEDWAGON_DOC_PDF'
+                    zip archive: true, dir: 'build/docs/html', glob: '', zipFile: "dist/${props.name}-${props.version}.doc.zip"
+                    stash includes: 'dist/*.doc.zip,build/docs/html/**', name: 'DOCS_ARCHIVE'
+                    archiveArtifacts artifacts: 'dist/docs/*.pdf'
+                }
+                cleanup{
+                    cleanWs(
+                        notFailBuild: true,
+                        deleteDirs: true,
+                        patterns: [
+                            [pattern: 'dist/', type: 'INCLUDE'],
+                            [pattern: 'build/', type: 'INCLUDE'],
+                        ]
+                    )
+                }
+            }
+        }
         stage('Checks'){
             stages{
                 stage('Code Quality'){
@@ -602,21 +630,21 @@ pipeline {
                                                 }
                                             }
                                         }
-//                                        stage('Run Doctest Tests'){
-//                                            steps {
-//                                                sh(
-//                                                    label: 'Running Doctest Tests',
-//                                                    script: '''mkdir -p logs
-//                                                               coverage run --parallel-mode --source=speedwagon -m sphinx -b doctest docs/source build/docs -d build/docs/doctrees --no-color -w logs/doctest.txt
-//                                                               '''
-//                                                    )
-//                                            }
-//                                            post{
-//                                                always {
-//                                                    recordIssues(tools: [sphinxBuild(id: 'doctest', name: 'Doctest', pattern: 'logs/doctest.txt')])
-//                                                }
-//                                            }
-//                                        }
+                                        stage('Run Doctest Tests'){
+                                            steps {
+                                                sh(
+                                                    label: 'Running Doctest Tests',
+                                                    script: '''mkdir -p logs
+                                                               coverage run --parallel-mode --source=speedwagon_uiucprescon -m sphinx -b doctest docs build/docs -d build/docs/doctrees --no-color -w logs/doctest.txt
+                                                               '''
+                                                    )
+                                            }
+                                            post{
+                                                always {
+                                                    recordIssues(tools: [sphinxBuild(id: 'doctest', name: 'Doctest', pattern: 'logs/doctest.txt')])
+                                                }
+                                            }
+                                        }
                                         stage('Run MyPy Static Analysis') {
                                             steps{
                                                 catchError(buildResult: 'SUCCESS', message: 'MyPy found issues', stageResult: 'UNSTABLE') {
@@ -1206,7 +1234,7 @@ pipeline {
                             }
                             steps {
 //                                milestone label: 'devpi_deploy'
-//                                unstash 'DOCS_ARCHIVE'
+                                unstash 'DOCS_ARCHIVE'
                                 unstash 'PYTHON_PACKAGES'
                                 script{
                                     load('ci/jenkins/scripts/devpi.groovy').upload(
@@ -1504,49 +1532,45 @@ pipeline {
                             steps{
                                 unstash 'CHOCOLATEY_PACKAGE'
                                 deploy_to_chocolatey(CHOCOLATEY_SERVER)
-//                                script{
-//                                    def chocolatey = load('ci/jenkins/scripts/chocolatey.groovy')
-//                                }
-
                             }
                         }
-//                        stage('Deploy Online Documentation') {
-//                            when{
-//                                equals expected: true, actual: params.DEPLOY_DOCS
-//                                beforeAgent true
-//                                beforeInput true
-//                            }
-//                            agent {
-//                                dockerfile {
-//                                    filename 'ci/docker/linux/jenkins/Dockerfile'
-//                                    label 'linux && docker'
-//                                    additionalBuildArgs ' --build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-//                                  }
-//                            }
-//                            options{
-//                                timeout(time: 1, unit: 'DAYS')
-//                            }
-//                            input {
-//                                message 'Update project documentation?'
-//                            }
-//                            steps{
-//                                unstash 'DOCS_ARCHIVE'
-//                                withCredentials([usernamePassword(credentialsId: 'dccdocs-server', passwordVariable: 'docsPassword', usernameVariable: 'docsUsername')]) {
-//                                    sh 'python utils/upload_docs.py --username=$docsUsername --password=$docsPassword --subroute=speedwagon build/docs/html apache-ns.library.illinois.edu'
-//                                }
-//                            }
-//                            post{
-//                                cleanup{
-//                                    cleanWs(
-//                                        deleteDirs: true,
-//                                        patterns: [
-//                                            [pattern: 'build/', type: 'INCLUDE'],
-//                                            [pattern: 'dist/', type: 'INCLUDE'],
-//                                        ]
-//                                    )
-//                                }
-//                            }
-//                        }
+                        stage('Deploy Online Documentation') {
+                            when{
+                                equals expected: true, actual: params.DEPLOY_DOCS
+                                beforeAgent true
+                                beforeInput true
+                            }
+                            agent {
+                                dockerfile {
+                                    filename 'ci/docker/linux/jenkins/Dockerfile'
+                                    label 'linux && docker'
+                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
+                                  }
+                            }
+                            options{
+                                timeout(time: 1, unit: 'DAYS')
+                            }
+                            input {
+                                message 'Update project documentation?'
+                            }
+                            steps{
+                                unstash 'DOCS_ARCHIVE'
+                                withCredentials([usernamePassword(credentialsId: 'dccdocs-server', passwordVariable: 'docsPassword', usernameVariable: 'docsUsername')]) {
+                                    sh 'python contrib/upload_docs.py --username=$docsUsername --password=$docsPassword --subroute=speedwagon-uiucpreson build/docs/html apache-ns.library.illinois.edu'
+                                }
+                            }
+                            post{
+                                cleanup{
+                                    cleanWs(
+                                        deleteDirs: true,
+                                        patterns: [
+                                            [pattern: 'build/', type: 'INCLUDE'],
+                                            [pattern: 'dist/', type: 'INCLUDE'],
+                                        ]
+                                    )
+                                }
+                            }
+                        }
 //                        stage('Deploy Standalone'){
 //                            when {
 //                                allOf{
