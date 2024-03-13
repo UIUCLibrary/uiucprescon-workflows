@@ -595,13 +595,13 @@ pipeline {
                                                 recordIssues(tools: [taskScanner(highTags: 'FIXME', includePattern: 'speedwagon_uiucprescon/**/*.py', normalTags: 'TODO')])
                                             }
                                         }
-//                                        stage('Audit Requirement Freeze File'){
-//                                            steps{
-//                                                catchError(buildResult: 'SUCCESS', message: 'pip-audit found issues', stageResult: 'UNSTABLE') {
-//                                                    sh 'pip-audit -r requirements/requirements-gui-freeze.txt --cache-dir=/tmp/pip-audit-cache'
-//                                                }
-//                                            }
-//                                        }
+                                        stage('Audit Requirement Freeze File'){
+                                            steps{
+                                                catchError(buildResult: 'SUCCESS', message: 'pip-audit found issues', stageResult: 'UNSTABLE') {
+                                                    sh 'pip-audit -r requirements/requirements-vendor.txt --cache-dir=/tmp/pip-audit-cache'
+                                                }
+                                            }
+                                        }
 //                                        stage('Run Doctest Tests'){
 //                                            steps {
 //                                                sh(
@@ -1068,107 +1068,6 @@ pipeline {
                                         }
                                     }
                                 }
-//                                agent {
-//                                    dockerfile {
-//                                        filename 'ci/docker/windows/tox/Dockerfile'
-//                                        label 'windows && docker && x86'
-//                                        additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
-//                                      }
-//                                }
-//                                stages{
-//                                    stage('Building Python Vendored Wheels'){
-//                                        steps{
-//                                            withEnv(['PY_PYTHON=3.11']) {
-//                                                bat(
-//                                                    label: 'Getting dependencies to vendor',
-//                                                    script: '''
-//                                                        py -m pip install pip --upgrade
-//                                                        py -m pip install wheel
-//                                                        py -m pip wheel -r requirements/requirements-vendor.txt --no-deps -w .\\deps\\ -i %PIP_EXTRA_INDEX_URL%
-//                                                    '''
-//                                                )
-//                                            }
-//                                            stash includes: 'deps/*.whl', name: 'VENDORED_WHEELS_FOR_CHOCOLATEY'
-//                                        }
-//                                    }
-//                                    stage('Package for Chocolatey'){
-//                                        steps{
-//                                            unstash 'PYTHON_PACKAGES'
-//                                            script {
-//                                                findFiles(glob: 'dist/*.whl').each{
-//                                                    powershell(
-//                                                        label: 'Creating new Chocolatey package',
-//                                                        script: """contrib/make_chocolatey.ps1 `
-//                                                                    -PackageName speedwagon_uiucprescon `
-//                                                                    -PackageSummary \"${props.description}\" `
-//                                                                    -PackageVersion ${props.version} `
-//                                                                    -PackageMaintainer \"${props.maintainers[0].name}\" `
-//                                                                    -Wheel ${it.path} `
-//                                                                    -DependenciesDir '.\\deps' `
-//                                                                    -Requirements '.\\requirements\\requirements-freeze.txt' `
-//                                                                """
-//                                                    )
-//                                                }
-//                                            }
-//                                        }
-//                                        post{
-//                                            always{
-//                                                archiveArtifacts artifacts: 'packages/**/*.nuspec,packages/*.nupkg'
-//                                                stash includes: 'packages/*.nupkg', name: 'CHOCOLATEY_PACKAGE'
-//                                            }
-//                                            cleanup{
-//                                                cleanWs(
-//                                                    deleteDirs: true,
-//                                                    patterns: [
-//                                                        [pattern: 'packages/', type: 'INCLUDE']
-//                                                        ]
-//                                                    )
-//                                            }
-//                                        }
-//                                    }
-//                                    stage('Testing Chocolatey Package'){
-//                                        agent {
-//                                            docker{
-//                                                image 'chocolatey/choco:latest-windows'
-//                                                label 'windows && docker && x86'
-//                                            }
-//                                        }
-//                                            dockerfile {
-//                                                filename 'ci/docker/chocolatey_package/Dockerfile'
-//                                                label 'windows && docker && x86'
-//                                                additionalBuildArgs '--build-arg CHOCOLATEY_SOURCE'
-//                                              }
-//                                        }
-//                                        when{
-//                                            equals expected: true, actual: params.TEST_STANDALONE_PACKAGE_DEPLOYMENT
-//                                            beforeAgent true
-//                                        }
-//                                        options {
-//                                            timeout(time: 2, unit: 'HOURS')
-//                                        }
-//                                        steps{
-//                                            echo 'testing'
-//                                            unstash 'CHOCOLATEY_PACKAGE'
-////                                            testChocolateyPackage()
-//                                        }
-//                                        post{
-//                                            failure{
-//                                                powershell(
-//                                                    label: 'Gathering Chocolatey logs',
-//                                                    script: '''
-//                                                            $Path = "${Env:WORKSPACE}\\logs\\chocolatey"
-//                                                            If(!(test-path -PathType container $Path))
-//                                                            {
-//                                                                  New-Item -ItemType Directory -Path $Path
-//                                                            }
-//                                                            Copy-Item -Path C:\\ProgramData\\chocolatey\\logs -Destination $Path -Recurse
-//                                                            '''
-//                                                    )
-//                                                archiveArtifacts( artifacts: 'logs/**')
-//                                            }
-//                                        }
-//                                    }
-//                                }
                             }
 //                            stage('Windows Standalone'){
 //                                when{
