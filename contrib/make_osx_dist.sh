@@ -34,7 +34,7 @@ create_build_env() {
     then
         $BASE_PYTHON -m venv $VENV_PATH_FREEZE
         $VENV_PATH_FREEZE/bin/python -m pip install pip --upgrade
-        $VENV_PATH_FREEZE/bin/pip install -r requirements-freeze.txt
+        $VENV_PATH_FREEZE/bin/pip install -r requirements-mac-dmg.txt
     fi
 }
 

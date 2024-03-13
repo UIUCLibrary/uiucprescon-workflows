@@ -47,6 +47,7 @@ RUN C:\ProgramData\chocolatey\bin\choco.exe sources ; `
         throw 'git.exe not found' ; `
     }; `
     Write-Host "Finished install packages with Chocolatey"
+COPY packaging/choco_package_template/speedwagon C:\ProgramData\chocolatey\templates\speedwagon
 
 COPY --from=certsgen c:/roots.sst roots.sst
 RUN certutil -addstore -f root roots.sst ; `
