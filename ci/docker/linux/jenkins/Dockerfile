@@ -6,6 +6,18 @@ ARG SONAR_SCANNER_VERSION=5.0.1.3006
 
 
 FROM python:${PYTHON_VERSION} AS base_image
+ARG PYTHON_VERSION
+RUN rm -f /etc/apt/apt.conf.d/docker-clean
+COPY ci/docker/linux/jenkins/apt-packages.txt /tmp/
+RUN --mount=type=cache,id=apt-cache-python-${PYTHON_VERSION},target=/var/cache/apt \
+    apt-get update && \
+    apt-get install -y software-properties-common gpg-agent --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata --no-install-recommends && \
+    apt-get update && \
+     < /tmp/apt-packages.txt xargs apt-get install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
+
+
 ARG PIP_EXTRA_INDEX_URL
 ARG PIP_INDEX_URL
 
@@ -40,7 +52,8 @@ RUN python3 -m pip install --no-cache-dir pipx && \
     mkdir -p $PIPX_HOME  && chmod -R 777 $PIPX_HOME
 
 RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install 'devpi-client<7.0' && \
-    PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install 'twine'
+    PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install 'twine' && \
+    PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install 'pip-audit'
 
 COPY --from=SONAR_BUILDER /opt/sonar /opt/sonar/
 ARG SONAR_SCANNER_VERSION

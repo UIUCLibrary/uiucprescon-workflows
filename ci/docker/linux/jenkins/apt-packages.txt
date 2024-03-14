@@ -1,0 +1,3 @@
+latexmk
+texlive-latex-extra
+tex-gyre
