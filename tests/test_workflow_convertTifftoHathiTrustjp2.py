@@ -2,7 +2,7 @@ import warnings
 from unittest.mock import Mock, ANY
 
 import pytest
-from speedwagon_uiucprescon import workflow_convertTifftoHathiTrustJP2
+from speedwagon_uiucprescon import workflow_convert_tiff_to_hathi_jp2
 
 
 class TestConvertTiffToHathiJp2Workflow:
@@ -11,7 +11,7 @@ class TestConvertTiffToHathiJp2Workflow:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             return \
-                workflow_convertTifftoHathiTrustJP2.ConvertTiffToHathiJp2Workflow()
+                workflow_convert_tiff_to_hathi_jp2.ConvertTiffToHathiJp2Workflow()
 
     @pytest.fixture
     def default_options(self, workflow):
@@ -71,7 +71,7 @@ class TestConvertTiffToHathiJp2Workflow:
         ImageTask = Mock()
         ImageTask.name = task_type
         monkeypatch.setattr(
-            workflow_convertTifftoHathiTrustJP2,
+            workflow_convert_tiff_to_hathi_jp2,
             task_class,
             ImageTask
         )
@@ -116,26 +116,26 @@ class TestImageConvertTask:
 
         makedirs = Mock()
         monkeypatch.setattr(
-            workflow_convertTifftoHathiTrustJP2.os,
+            workflow_convert_tiff_to_hathi_jp2.os,
             "makedirs",
             makedirs
         )
 
         kdu_compress_cli2 = Mock()
         monkeypatch.setattr(
-            workflow_convertTifftoHathiTrustJP2.pykdu_compress,
+            workflow_convert_tiff_to_hathi_jp2.pykdu_compress,
             "kdu_compress_cli2",
             kdu_compress_cli2
         )
 
         set_dpi = Mock()
         monkeypatch.setattr(
-            workflow_convertTifftoHathiTrustJP2,
+            workflow_convert_tiff_to_hathi_jp2,
             "set_dpi",
             set_dpi
         )
 
-        task = workflow_convertTifftoHathiTrustJP2.ImageConvertTask(
+        task = workflow_convert_tiff_to_hathi_jp2.ImageConvertTask(
             source_file_path=source_file_path,
             output_path=output_path
         )
@@ -155,18 +155,18 @@ class TestCopyTask:
 
         makedirs = Mock()
         monkeypatch.setattr(
-            workflow_convertTifftoHathiTrustJP2.os,
+            workflow_convert_tiff_to_hathi_jp2.os,
             "makedirs",
             makedirs
         )
 
         process = Mock()
         monkeypatch.setattr(
-            workflow_convertTifftoHathiTrustJP2.ProcessFile,
+            workflow_convert_tiff_to_hathi_jp2.ProcessFile,
             "process",
             process
         )
-        task = workflow_convertTifftoHathiTrustJP2.CopyTask(
+        task = workflow_convert_tiff_to_hathi_jp2.CopyTask(
             source_file_path=source_file_path,
             output_path=output_path
         )
@@ -180,11 +180,11 @@ class TestCopyTask:
 @pytest.mark.parametrize(
     "task",
     [
-        workflow_convertTifftoHathiTrustJP2.CopyTask(
+        workflow_convert_tiff_to_hathi_jp2.CopyTask(
             source_file_path="source_file_path",
             output_path="output_path"
         ),
-        workflow_convertTifftoHathiTrustJP2.ImageConvertTask(
+        workflow_convert_tiff_to_hathi_jp2.ImageConvertTask(
             source_file_path="source_file_path",
             output_path="output_path"
         )

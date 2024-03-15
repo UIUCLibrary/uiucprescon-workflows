@@ -18,7 +18,7 @@ from .workflow_capture_one_to_dl_compound_and_dl import (
     CaptureOneToDlCompoundAndDLWorkflow,
 )
 from .workflow_completeness import CompletenessWorkflow
-from .workflow_convertCapOnePresToDigitalLibJP2 import (
+from .workflow_convert_capone_pres_to_digital_lib_jp2 import (
     ConvertTiffPreservationToDLJp2Workflow,
 )
 from .workflow_hathi_limited_to_dl_compound import (
@@ -42,7 +42,7 @@ from .workflow_verify_checksums import (
 from .workflow_zip_packages import ZipPackagesWorkflow
 
 # Deprecated workflows
-from .workflow_batch_to_HathiTrust_TIFF import (
+from .workflow_batch_to_hathi_tiff import (
     CaptureOneBatchToHathiComplete,
 )
 from .workflow_capture_one_to_dl_compound import (
@@ -51,7 +51,7 @@ from .workflow_capture_one_to_dl_compound import (
 from .workflow_capture_one_to_hathi import (
     CaptureOneToHathiTiffPackageWorkflow,
 )
-from .workflow_convertTifftoHathiTrustJP2 import (
+from .workflow_convert_tiff_to_hathi_jp2 import (
     ConvertTiffToHathiJp2Workflow,
 )
 from .workflow_make_checksum import (

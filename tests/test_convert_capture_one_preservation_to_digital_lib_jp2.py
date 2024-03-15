@@ -4,7 +4,7 @@ import pytest
 
 
 from speedwagon_uiucprescon import \
-    workflow_convertCapOnePresToDigitalLibJP2 as \
+    workflow_convert_capone_pres_to_digital_lib_jp2 as \
     capture_one_workflow
 
 
