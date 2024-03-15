@@ -7,10 +7,11 @@ import typing
 from uiucprescon.packager.packages import collection
 
 import speedwagon
-from speedwagon_uiucprescon import tasks
 import speedwagon.tasks.packaging
 import speedwagon.workflow
 from speedwagon.frontend.interaction import UserRequestFactory
+
+from speedwagon_uiucprescon import tasks
 
 __all__ = ['HathiPrepWorkflow']
 

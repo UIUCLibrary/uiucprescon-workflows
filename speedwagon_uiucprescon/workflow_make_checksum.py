@@ -14,8 +14,9 @@ import speedwagon
 from speedwagon.job import Workflow
 import speedwagon.workflow
 from speedwagon.reports import add_report_borders
-from speedwagon_uiucprescon import tasks
 from speedwagon.workflows.checksum_shared import ResultsValues
+
+from speedwagon_uiucprescon import tasks
 
 __all__ = [
     'MakeChecksumBatchSingleWorkflow',
