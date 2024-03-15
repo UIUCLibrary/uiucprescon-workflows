@@ -1,3 +1,5 @@
+"""Shared task code."""
+
 from .prep import MakeMetaYamlTask, PrepTask, GenerateChecksumTask
 from .validation import (
     ValidateImageMetadataTask,
