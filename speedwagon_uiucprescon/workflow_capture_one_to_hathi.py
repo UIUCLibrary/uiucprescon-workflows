@@ -32,7 +32,8 @@ class CaptureOneToHathiTiffPackageWorkflow(Workflow):
 
         warnings.warn(
             "Pending removal of Convert CaptureOne TIFF to Hathi TIFF package",
-            DeprecationWarning
+            DeprecationWarning,
+            stacklevel=2
         )
 
     def discover_task_metadata(

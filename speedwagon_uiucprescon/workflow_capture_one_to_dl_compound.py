@@ -36,7 +36,8 @@ class CaptureOneToDlCompoundWorkflow(Workflow):
         warnings.warn(
             "Pending removal of Convert CaptureOne TIFF to Digital "
             "Library Compound Object",
-            DeprecationWarning
+            DeprecationWarning,
+            stacklevel=2
         )
 
     def discover_task_metadata(self,

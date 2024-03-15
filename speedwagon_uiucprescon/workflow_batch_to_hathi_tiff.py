@@ -57,7 +57,8 @@ class CaptureOneBatchToHathiComplete(speedwagon.Workflow):
         warnings.warn(
             "Pending removal of CaptureOne Batch to HathiTrust TIFF Complete "
             "Package",
-            DeprecationWarning
+            DeprecationWarning,
+            stacklevel=2
         )
 
         super().__init__()

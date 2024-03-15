@@ -245,7 +245,8 @@ class RegenerateChecksumBatchSingleWorkflow(CreateChecksumWorkflow):
 
         warnings.warn(
             "Pending removal of Regenerate Checksum Batch [Single]",
-            DeprecationWarning
+            DeprecationWarning,
+            stacklevel=2
         )
 
     def discover_task_metadata(self,
@@ -328,7 +329,8 @@ class RegenerateChecksumBatchMultipleWorkflow(CreateChecksumWorkflow):
 
         warnings.warn(
             "Pending removal of Regenerate Checksum Batch [Multiple]",
-            DeprecationWarning
+            DeprecationWarning,
+            stacklevel=2
         )
 
     def discover_task_metadata(self,
