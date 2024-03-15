@@ -3,10 +3,6 @@ import os
 
 import speedwagon
 
-if typing.TYPE_CHECKING:
-    from speedwagon.config import SettingsData
-
-# from speedwagon.plugins import Plugin
 from speedwagon.tasks.system import AbsSystemTask
 from speedwagon.config import (
     WorkflowSettingsYAMLResolver,
@@ -119,7 +115,7 @@ class TesseractConfigSetupTask(AbsSystemTask):
             getter_strategy=WorkflowSettingsYAMLResolver(yaml_file),
             setter_strategy=WorkflowSettingsYamlExporter(yaml_file)
         )
-        workflow_settings: SettingsData = {}
+        workflow_settings: speedwagon.config.SettingsData = {}
         ocr_workflow = OCRWorkflow()
         ocr_existing_options = manager.get_workflow_settings(ocr_workflow)
         if "Tesseract data file location" not in ocr_existing_options:
