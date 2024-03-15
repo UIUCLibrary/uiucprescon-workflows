@@ -26,3 +26,9 @@ packages = [
     'speedwagon_uiucprescon',
     'speedwagon_uiucprescon.tasks'
 ]
+
+[tool.coverage.report]
+exclude_lines = [
+    "if TYPE_CHECKING:",
+    "if typing.TYPE_CHECKING:",
+]

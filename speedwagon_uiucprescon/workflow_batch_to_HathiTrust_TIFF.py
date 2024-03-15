@@ -3,7 +3,7 @@ from __future__ import annotations
 import itertools
 import os
 import warnings
-from typing import Dict, Optional, List, Any, Type, Mapping
+from typing import Dict, Optional, List, Any, Type, Mapping, TYPE_CHECKING
 import typing
 from collections.abc import Sized
 
@@ -13,12 +13,15 @@ from uiucprescon import packager
 import speedwagon
 import speedwagon.exceptions
 
-from speedwagon_uiucprescon import tasks
 from speedwagon.frontend import interaction
+
+from speedwagon_uiucprescon import tasks
 from speedwagon_uiucprescon import workflow_get_marc
-if typing.TYPE_CHECKING:
+
+if TYPE_CHECKING:
     from speedwagon.workflow import AbsOutputOptionDataType
     from speedwagon.config import SettingsData
+
 
 __all__ = ['CaptureOneBatchToHathiComplete']
 

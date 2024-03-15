@@ -6,7 +6,7 @@ certifi==2024.2.2
 chardet==5.2.0
 charset-normalizer==3.3.2
 colorama==0.4.6
-coverage==7.4.3
+coverage==7.4.4
 dill==0.3.8
 distlib==0.3.8
 docutils==0.20.1
@@ -61,6 +61,7 @@ sphinxcontrib-serializinghtml==1.1.10
 tomli==2.0.1
 tomlkit==0.12.4
 tox==4.14.1
+types-requests==2.31.0.20240311
 typing_extensions==4.10.0
 tzdata==2024.1
 tzlocal==4.3.1
@@ -70,4 +71,4 @@ uiucprescon.ocr==0.1.4.post2
 uiucprescon.packager==0.2.15
 urllib3==2.2.1
 virtualenv==20.25.1
-zipp==3.18.0
+zipp==3.18.1

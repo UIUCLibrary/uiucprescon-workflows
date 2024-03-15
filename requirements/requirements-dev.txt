@@ -7,3 +7,4 @@ pyside6
 pytest
 sphinx
 tox
+types-requests
