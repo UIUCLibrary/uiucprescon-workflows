@@ -53,8 +53,10 @@ disable = [
     "missing-docstring"
 ]
 [tool.ruff]
-select = ["E", "F", "W", "D", "B"]
 line-length = 79
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint]
+select = ["E", "F", "W", "D", "B"]
+
+[tool.ruff.lint.pydocstyle]
 convention = "google"
