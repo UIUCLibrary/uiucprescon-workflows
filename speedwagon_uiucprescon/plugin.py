@@ -1,3 +1,8 @@
+"""plugin.
+
+Define what workflows are part of this plugin.
+"""
+
 import typing
 import os
 
@@ -89,7 +94,10 @@ deprecated_workflows: typing.List[typing.Type[speedwagon.Workflow]] = [
 
 
 class TesseractConfigSetupTask(AbsSystemTask):
+    """Configure Tesseract data location."""
+
     def __init__(self) -> None:
+        """Create a new TesseractConfigSetupTask object."""
         super().__init__()
         self.config_file_location_strategy = StandardConfigFileLocator()
 
@@ -109,6 +117,7 @@ class TesseractConfigSetupTask(AbsSystemTask):
         )
 
     def run(self) -> None:
+        """Run task."""
         yaml_file = self.get_config_file()
 
         manager = WorkflowSettingsManager(
@@ -126,4 +135,5 @@ class TesseractConfigSetupTask(AbsSystemTask):
             manager.save_workflow_settings(ocr_workflow, workflow_settings)
 
     def description(self) -> str:
+        """Detailed message to user."""
         return 'Setting up Tesseract data configuration settings.'

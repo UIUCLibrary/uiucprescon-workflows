@@ -95,7 +95,8 @@ class ConvertTiffToHathiJp2Workflow(Workflow):
 
         warnings.warn(
             "Pending removal of Convert TIFF to HathiTrust JP2",
-            DeprecationWarning
+            DeprecationWarning,
+            stacklevel=2
         )
 
     def discover_task_metadata(self, initial_results: List[Any],

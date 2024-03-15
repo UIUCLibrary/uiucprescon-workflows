@@ -52,3 +52,11 @@ disable = [
 #    Documentation checks should be done by pydocstyle instead of pylint
     "missing-docstring"
 ]
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "D", "B"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
