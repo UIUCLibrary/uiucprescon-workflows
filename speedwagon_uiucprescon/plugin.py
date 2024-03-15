@@ -1,3 +1,8 @@
+"""plugin.
+
+Define what workflows are part of this plugin.
+"""
+
 import typing
 import os
 

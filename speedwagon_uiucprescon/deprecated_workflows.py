@@ -1,3 +1,8 @@
+"""Deprecated Workflows.
+
+This contains all the workflows that are deprecated and ready for removal.
+"""
+
 import speedwagon
 from .plugin import deprecated_workflows
 
