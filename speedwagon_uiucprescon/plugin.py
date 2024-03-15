@@ -127,18 +127,3 @@ class TesseractConfigSetupTask(AbsSystemTask):
 
     def description(self) -> str:
         return 'Setting up Tesseract data configuration settings.'
-
-
-# def register_active_plugin() -> Plugin:
-#     new_plugin = Plugin()
-#     for workflow in active_workflows:
-#         new_plugin.register_workflow(workflow)
-#     new_plugin.register_plugin_startup_task(TesseractConfigSetupTask())
-#     return new_plugin
-#
-#
-# def register_deprecated_plugin() -> Plugin:
-#     new_plugin = Plugin()
-#     for workflow in deprecated_workflows:
-#         new_plugin.register_workflow(workflow)
-#     return new_plugin
