@@ -518,8 +518,6 @@ pipeline {
         credentials(name: 'SONARCLOUD_TOKEN', credentialType: 'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl', defaultValue: 'sonarcloud_token', required: false)
         booleanParam(name: 'TEST_RUN_TOX', defaultValue: false, description: 'Run Tox Tests')
         booleanParam(name: 'BUILD_PACKAGES', defaultValue: false, description: 'Build Packages')
-//        booleanParam(name: 'TEST_STANDALONE_PACKAGE_DEPLOYMENT', defaultValue: true, description: 'Test deploying any packages that are designed to be installed without using Python directly')
-        booleanParam(name: 'BUILD_CHOCOLATEY_PACKAGE', defaultValue: false, description: 'Build package for chocolatey package manager')
         booleanParam(name: 'INCLUDE_LINUX_ARM', defaultValue: false, description: 'Include ARM architecture for Linux')
         booleanParam(name: 'INCLUDE_LINUX_X86_64', defaultValue: true, description: 'Include x86_64 architecture for Linux')
         booleanParam(name: 'INCLUDE_MACOS_ARM', defaultValue: false, description: 'Include ARM(m1) architecture for Mac')
@@ -527,9 +525,8 @@ pipeline {
         booleanParam(name: 'INCLUDE_WINDOWS_X86_64', defaultValue: true, description: 'Include x86_64 architecture for Windows')
         booleanParam(name: 'TEST_PACKAGES', defaultValue: true, description: 'Test Python packages by installing them and running tests on the installed package')
         booleanParam(name: 'PACKAGE_MAC_OS_STANDALONE_DMG', defaultValue: false, description: 'Create a Apple Application Bundle DMG')
-        booleanParam(name: 'PACKAGE_WINDOWS_STANDALONE', defaultValue: false, description: 'Create a standalone wix based .msi installer')
-//        booleanParam(name: 'PACKAGE_WINDOWS_STANDALONE_NSIS', defaultValue: false, description: 'Create a standalone NULLSOFT NSIS based .exe installer')
-//        booleanParam(name: 'PACKAGE_WINDOWS_STANDALONE_ZIP', defaultValue: false, description: 'Create a standalone portable package')
+        booleanParam(name: 'PACKAGE_FOR_CHOCOLATEY', defaultValue: false, description: 'Build package for chocolatey package manager')
+        booleanParam(name: 'PACKAGE_STANDALONE_WINDOWS_INSTALLER', defaultValue: false, description: 'Create a standalone wix based .msi installer')
         booleanParam(name: 'DEPLOY_DEVPI', defaultValue: false, description: "Deploy to DevPi on ${DEVPI_CONFIG.server}/DS_Jenkins/${env.BRANCH_NAME}")
         booleanParam(name: 'DEPLOY_DEVPI_PRODUCTION', defaultValue: false, description: "Deploy to ${DEVPI_CONFIG.server}/production/release")
         booleanParam(name: 'DEPLOY_PYPI', defaultValue: false, description: 'Deploy to pypi')
@@ -847,7 +844,7 @@ pipeline {
             when{
                 anyOf{
                     equals expected: true, actual: params.BUILD_PACKAGES
-                    equals expected: true, actual: params.BUILD_CHOCOLATEY_PACKAGE
+                    equals expected: true, actual: params.PACKAGE_FOR_CHOCOLATEY
                     equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
                     equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                     equals expected: true, actual: params.DEPLOY_DEVPI
@@ -1020,7 +1017,7 @@ pipeline {
                             when{
                                 anyOf{
                                     equals expected: true, actual: params.DEPLOY_CHOCOLATEY
-                                    equals expected: true, actual: params.BUILD_CHOCOLATEY_PACKAGE
+                                    equals expected: true, actual: params.PACKAGE_FOR_CHOCOLATEY
                                 }
                                 beforeInput true
                             }
@@ -1103,141 +1100,34 @@ pipeline {
                                                 script{
                                                     def version = sanitize_chocolatey_version(props.version)
 
-                                                        powershell(script: "choco install speedwagon_uiucprescon -y -dv  --version=${sanitize_chocolatey_version(props.version)} -s \'./packages/;CHOCOLATEY_SOURCE;chocolatey\' --no-progress")
+                                                    powershell(script: "choco install speedwagon_uiucprescon -y -dv  --version=${sanitize_chocolatey_version(props.version)} -s \'./packages/;CHOCOLATEY_SOURCE;chocolatey\' --no-progress")
 
 
-                                                    }
                                                 }
                                             }
-                                            stage('Verify Installed Package'){
-                                                steps{
-                                                    powershell(
-                                                        label: 'Checking everything installed correctly',
-                                                        script: 'contrib/ensure_installed_property.ps1 -StartMenuShortCut "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestSpeedwagonVersion -TestInChocolateyList speedwagon_uiucprescon'
-                                                    )
-                                                }
+                                        }
+                                        stage('Verify Installed Package'){
+                                            steps{
+                                                powershell(
+                                                    label: 'Checking everything installed correctly',
+                                                    script: 'contrib/ensure_installed_property.ps1 -StartMenuShortCut "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestSpeedwagonVersion -TestInChocolateyList speedwagon_uiucprescon'
+                                                )
                                             }
-                                            stage('Uninstall Chocolatey Package'){
-                                                steps{
-                                                    powershell(script: 'choco uninstall speedwagon_uiucprescon -y')
-                                                }
+                                        }
+                                        stage('Uninstall Chocolatey Package'){
+                                            steps{
+                                                powershell(script: 'choco uninstall speedwagon_uiucprescon -y')
                                             }
-                                            stage('Verify Uninstalled Package'){
-                                                steps{
-                                                    powershell(script: 'contrib/ensure_uninstalled.ps1 -StartMenuShortCutRemoved "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestInChocolateyList speedwagon_uiucprescon')
-                                                }
+                                        }
+                                        stage('Verify Uninstalled Package'){
+                                            steps{
+                                                powershell(script: 'contrib/ensure_uninstalled.ps1 -StartMenuShortCutRemoved "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestInChocolateyList speedwagon_uiucprescon')
                                             }
                                         }
                                     }
                                 }
                             }
-//                            stage('Windows Standalone'){
-//                                when{
-//                                    anyOf{
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_NSIS
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_ZIP
-//                                    }
-//                                    beforeAgent true
-//                                }
-//                                stages{
-//                                    stage('CMake Build'){
-//                                        agent {
-//                                            dockerfile {
-//                                                filename 'ci/docker/windows_standalone/Dockerfile'
-//                                                label 'Windows && Docker && x86'
-//                                                args '-u ContainerAdministrator'
-//                                                additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE'
-//                                              }
-//                                        }
-//                                        steps {
-//                                            unstash 'SPEEDWAGON_DOC_PDF'
-//                                            script{
-//                                                withEnv(["build_number=${get_build_number()}"]) {
-//                                                    load('ci/jenkins/scripts/standalone.groovy').build_standalone(
-//                                                        packageFormat: [
-//                                                            msi: params.PACKAGE_WINDOWS_STANDALONE_MSI,
-//                                                            nsis: params.PACKAGE_WINDOWS_STANDALONE_NSIS,
-//                                                            zipFile: params.PACKAGE_WINDOWS_STANDALONE_ZIP,
-//                                                        ],
-//                                                        vendoredPythonRequirementsFile: 'requirements/requirements-gui-freeze.txt',
-//                                                        buildDir: 'build\\cmake_build',
-//                                                        venvPath: "${WORKSPACE}\\build\\standalone_venv",
-//                                                        package: [
-//                                                            version: props.version
-//                                                        ],
-//                                                        testing:[
-//                                                            ctestLogsFilePath: "${WORKSPACE}\\logs\\ctest.log"
-//                                                        ]
-//                                                    )
-//                                                }
-//                                            }
-//                                            stash includes: 'dist/*.msi,dist/*.exe,dist/*.zip', name: 'STANDALONE_INSTALLERS'
-//                                        }
-//                                        post {
-//                                            success{
-//                                                archiveArtifacts artifacts: 'dist/*.msi,dist/*.exe,dist/*.zip', fingerprint: true
-//                                            }
-//                                            failure {
-//                                                archiveArtifacts allowEmptyArchive: true, artifacts: 'dist/**/wix.log,dist/**/*.wxs'
-//                                                archiveArtifacts allowEmptyArchive: true, artifacts: 'logs/**'
-//                                            }
-//                                            cleanup{
-//                                                cleanWs(
-//                                                    patterns: [
-//                                                            [pattern: '*.egg-info/**', type: 'INCLUDE'],
-//                                                            [pattern: '.pytest_cache/**', type: 'INCLUDE'],
-//                                                            [pattern: '**/__pycache__/', type: 'INCLUDE'],
-//                                                            [pattern: 'build/**', type: 'INCLUDE'],
-//                                                            [pattern: 'temp/**', type: 'INCLUDE'],
-//                                                            [pattern: 'dist/**', type: 'INCLUDE'],
-//                                                            [pattern: 'logs/**', type: 'INCLUDE'],
-//                                                        ],
-//                                                    notFailBuild: true,
-//                                                    deleteDirs: true
-//                                                )
-//                                            }
-//                                        }
-//                                    }
-//                                    stage('Testing MSI Install'){
-//                                        agent {
-//                                            docker {
-//                                                args '-u ContainerAdministrator'
-//                                                image 'mcr.microsoft.com/windows/servercore:ltsc2019'
-//                                                label 'Windows && Docker && x86'
-//                                            }
-//                                        }
-//                                        when{
-//                                            allOf{
-//                                                equals expected: true, actual: params.TEST_STANDALONE_PACKAGE_DEPLOYMENT
-//                                                equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
-//                                            }
-//                                            beforeAgent true
-//                                        }
-//                                        steps{
-//                                            timeout(15){
-//                                                unstash 'STANDALONE_INSTALLERS'
-//                                                script{
-//                                                    def standalone = load('ci/jenkins/scripts/standalone.groovy')
-//                                                    standalone.testInstall('dist/*.msi')
-//                                                }
-//                                            }
-//                                        }
-//                                        post {
-//                                            cleanup{
-//                                                cleanWs(
-//                                                    deleteDirs: true,
-//                                                    notFailBuild: true,
-//                                                    patterns: [
-//                                                        [pattern: 'dist/', type: 'INCLUDE']
-//                                                    ]
-//                                                )
-//                                            }
-//                                        }
-//                                    }
-//                                }
-//                            }
-//                        }
+                        }
                     }
                 }
                 stage('Deploy to Devpi'){
