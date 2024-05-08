@@ -131,7 +131,7 @@ def testPythonPackages(){
                         },
                         testCommand: {
                              findFiles(glob: 'dist/*.tar.gz,dist/*.zip').each{
-                                 powershell(label: 'Running Tox', script: "tox --installpkg ${it.path} --workdir \$env:TEMP\\tox  -e py${pythonVersion.replace('.', '')}-PySide6")
+                                powershell(label: 'Running Tox', script: "tox --installpkg ${it.path} --workdir \$env:TEMP\\tox  -e py${pythonVersion.replace('.', '')}-PySide6")
                              }
 
                         },
@@ -202,8 +202,8 @@ def testPythonPackages(){
                             dockerfile: [
                                 label: "linux && docker && ${processorArchitecture}",
                                 filename: 'ci/docker/linux/tox/Dockerfile',
-                                additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL',
-                                args: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip'
+                                additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg PIP_DOWNLOAD_CACHE=/.cache/pip --build-arg UV_CACHE_DIR=/.cache/uv',
+                                args: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip -v uvcache_speedwagon_uiucprescon_workflows:/.cache/uv'
                             ]
                         ],
                         retries: 3,
@@ -239,8 +239,8 @@ def testPythonPackages(){
                             dockerfile: [
                                 label: "linux && docker && ${processorArchitecture}",
                                 filename: 'ci/docker/linux/tox/Dockerfile',
-                                additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL',
-                                args: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip'
+                                additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg PIP_DOWNLOAD_CACHE=/.cache/pip --build-arg UV_CACHE_DIR=/.cache/uv',
+                                args: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip -v uvcache_speedwagon_uiucprescon_workflows:/.cache/uv'
                             ]
                         ],
                         retries: 3,
@@ -842,8 +842,8 @@ pipeline {
                                                 envNamePrefix: 'Tox Linux',
                                                 label: 'linux && docker',
                                                 dockerfile: 'ci/docker/linux/tox/Dockerfile',
-                                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg PIP_DOWNLOAD_CACHE=/.cache/pip',
-                                                dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip',
+                                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg PIP_DOWNLOAD_CACHE=/.cache/pip --build-arg UV_CACHE_DIR=/.cache/uv',
+                                                dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip -v uvcache_speedwagon_uiucprescon_workflows:/.cache/uv',
                                                 retry: 2
                                             )
                                     },
@@ -852,8 +852,8 @@ pipeline {
                                                 envNamePrefix: 'Tox Windows',
                                                 label: 'windows && docker',
                                                 dockerfile: 'ci/docker/windows/tox/Dockerfile',
-                                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip',
-                                                dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip',
+                                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv',
+                                                dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv',
                                                 retry: 2
 
                                             )
@@ -1016,8 +1016,8 @@ pipeline {
                                 dockerfile {
                                     filename 'ci/docker/windows/tox/Dockerfile'
                                     label 'windows && docker && x86'
-                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
-                                    args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip'
+                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
+                                    args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
                                   }
                             }
                             steps{
@@ -1066,8 +1066,8 @@ pipeline {
                                         dockerfile {
                                             filename 'ci/docker/windows/tox/Dockerfile'
                                             label 'windows && docker && x86'
-                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
-                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip'
+                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
+                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
                                           }
                                     }
                                     stages{
@@ -1130,8 +1130,8 @@ pipeline {
                                         dockerfile {
                                             filename 'ci/docker/windows/tox/Dockerfile'
                                             label 'windows && docker && x86'
-                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
-                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip'
+                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
+                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
                                           }
                                     }
                                     stages{
@@ -1228,7 +1228,7 @@ pipeline {
                                                     agent: [
                                                         dockerfile: [
                                                             filename: 'ci/docker/windows/tox/Dockerfile',
-                                                            additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE',
+                                                            additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv',
                                                             label: 'windows && docker && x86 && devpi-access'
                                                         ]
                                                     ],
@@ -1253,7 +1253,7 @@ pipeline {
                                                     agent: [
                                                         dockerfile: [
                                                             filename: 'ci/docker/windows/tox/Dockerfile',
-                                                            additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE',
+                                                            additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv',
                                                             label: 'windows && docker && x86 && devpi-access'
                                                         ]
                                                     ],
@@ -1283,9 +1283,9 @@ pipeline {
                                                     agent: [
                                                         dockerfile: [
                                                             filename: 'ci/docker/linux/tox/Dockerfile',
-                                                            additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL',
+                                                            additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg PIP_DOWNLOAD_CACHE=/.cache/pip --build-arg UV_CACHE_DIR=/.cache/uv',
                                                             label: 'linux && docker && x86 && devpi-access',
-                                                            args: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip'
+                                                            args: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip -v uvcache_speedwagon_uiucprescon_workflows:/.cache/uv'
                                                         ]
                                                     ],
                                                     devpi: [
@@ -1309,9 +1309,9 @@ pipeline {
                                                     agent: [
                                                         dockerfile: [
                                                             filename: 'ci/docker/linux/tox/Dockerfile',
-                                                            additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL',
+                                                            additionalBuildArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg PIP_DOWNLOAD_CACHE=/.cache/pip --build-arg UV_CACHE_DIR=/.cache/uv',
                                                             label: 'linux && docker && x86 && devpi-access',
-                                                            args: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip'
+                                                            args: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip -v uvcache_speedwagon_uiucprescon_workflows:/.cache/uv'
                                                         ]
                                                     ],
                                                     devpi: [
@@ -1490,7 +1490,7 @@ pipeline {
                         dockerfile {
                             filename 'ci/docker/windows/tox/Dockerfile'
                             label 'windows && docker && x86'
-                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE'
+                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
                           }
                     }
                     options{
