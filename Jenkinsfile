@@ -9,6 +9,21 @@ SUPPORTED_MAC_VERSIONS = ['3.9', '3.10', '3.11']
 SUPPORTED_LINUX_VERSIONS = ['3.8', '3.9', '3.10', '3.11']
 SUPPORTED_WINDOWS_VERSIONS = ['3.8', '3.9', '3.10', '3.11']
 
+def deployStandalone(glob, url) {
+    script{
+        findFiles(glob: glob).each{
+            try{
+                def encodedUrlFileName = new URI(null, null, it.name, null).toASCIIString()
+                def putResponse = httpRequest authentication: NEXUS_CREDS, httpMode: 'PUT', uploadFile: it.path, url: "${url}/${encodedUrlFileName}", wrapAsMultipart: false
+                echo "http request response: ${putResponse.content}"
+            } catch(Exception e){
+                echo "${e}"
+                throw e;
+            }
+        }
+    }
+}
+
 def getChocolateyServers() {
     retry(conditions: [agent()], count: 3) {
         node(){
@@ -68,6 +83,19 @@ def getDevpiConfig() {
         }
     }
 }
+
+def getStandAloneStorageServers(){
+    retry(conditions: [agent()], count: 3) {
+        node(){
+            configFileProvider([configFile(fileId: 'deploymentStorageConfig', variable: 'CONFIG_FILE')]) {
+                def config = readJSON( file: CONFIG_FILE)
+                return config['publicReleases']['urls']
+            }
+        }
+    }
+}
+
+
 def DEVPI_CONFIG = getDevpiConfig()
 
 def getPypiConfig() {
@@ -80,6 +108,7 @@ def getPypiConfig() {
         }
     }
 }
+
 
 def testPythonPackages(){
     script{
@@ -531,7 +560,7 @@ pipeline {
         booleanParam(name: 'DEPLOY_DEVPI_PRODUCTION', defaultValue: false, description: "Deploy to ${DEVPI_CONFIG.server}/production/release")
         booleanParam(name: 'DEPLOY_PYPI', defaultValue: false, description: 'Deploy to pypi')
         booleanParam(name: 'DEPLOY_CHOCOLATEY', defaultValue: false, description: 'Deploy to Chocolatey repository')
-//        booleanParam(name: 'DEPLOY_STANDALONE_PACKAGERS', defaultValue: false, description: 'Deploy standalone packages')
+        booleanParam(name: 'DEPLOY_STANDALONE_PACKAGERS', defaultValue: false, description: 'Deploy standalone packages')
         booleanParam(name: 'DEPLOY_DOCS', defaultValue: false, description: 'Update online documentation')
     }
     stages {
@@ -1011,6 +1040,16 @@ pipeline {
                                     archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
                                     stash includes: 'dist/*.msi', name: 'STANDALONE_WINDOWS_INSTALLER'
                                 }
+                                cleanup{
+                                    cleanWs(
+                                        deleteDirs: true,
+                                        patterns: [
+                                            [pattern: 'build/', type: 'INCLUDE'],
+                                            [pattern: 'dist/', type: 'INCLUDE'],
+                                            [pattern: 'venv/', type: 'INCLUDE'],
+                                        ]
+                                    )
+                                }
                             }
                         }
                         stage('Chocolatey'){
@@ -1377,200 +1416,214 @@ pipeline {
                         }
                     }
                 }
-                stage('Deploy'){
-                    parallel {
-                        stage('Deploy to pypi') {
-                            agent {
-                                dockerfile {
-                                    filename 'ci/docker/linux/jenkins/Dockerfile'
-                                    label 'linux && docker'
-                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-                                }
+            }
+        }
+        stage('Deploy'){
+            when{
+                anyOf {
+                    equals expected: true, actual:  params.DEPLOY_PYPI
+                    equals expected: true, actual:  params.DEPLOY_CHOCOLATEY
+                    equals expected: true, actual:  params.DEPLOY_STANDALONE_PACKAGERS
+                    equals expected: true, actual:  params.DEPLOY_DOCS
+                }
+                beforeOptions true
+            }
+            options{
+                lock('uiucpreson_workflows-deploy')
+            }
+            parallel {
+                stage('Deploy to pypi') {
+                    agent {
+                        dockerfile {
+                            filename 'ci/docker/linux/jenkins/Dockerfile'
+                            label 'linux && docker'
+                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
+                        }
+                    }
+                    when{
+                        allOf{
+                            equals expected: true, actual: params.DEPLOY_PYPI
+                            equals expected: true, actual: params.BUILD_PACKAGES
+                        }
+                        beforeAgent true
+                        beforeInput true
+                    }
+                    options{
+                        retry(3)
+                    }
+                    input {
+                        message 'Upload to pypi server?'
+                        parameters {
+                            choice(
+                                choices: getPypiConfig(),
+                                description: 'Url to the pypi index to upload python packages.',
+                                name: 'SERVER_URL'
+                            )
+                        }
+                    }
+                    steps{
+                        unstash 'PYTHON_PACKAGES'
+                        pypiUpload(
+                            credentialsId: 'jenkins-nexus',
+                            repositoryUrl: SERVER_URL,
+                            glob: 'dist/*'
+                        )
+                    }
+                    post{
+                        cleanup{
+                            cleanWs(
+                                deleteDirs: true,
+                                patterns: [
+                                        [pattern: 'dist/', type: 'INCLUDE']
+                                    ]
+                            )
+                        }
+                    }
+                }
+                stage('Deploy to Chocolatey') {
+                    when{
+                        equals expected: true, actual: params.DEPLOY_CHOCOLATEY
+                        beforeInput true
+                        beforeAgent true
+                    }
+                    agent {
+                        dockerfile {
+                            filename 'ci/docker/windows/tox/Dockerfile'
+                            label 'windows && docker && x86'
+                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE'
+                          }
+                    }
+                    options{
+                        timeout(time: 1, unit: 'DAYS')
+                        retry(3)
+                    }
+                    input {
+                        message 'Deploy to Chocolatey server'
+                        id 'CHOCOLATEY_DEPLOYMENT'
+                        parameters {
+                            choice(
+                                choices: getChocolateyServers(),
+                                description: 'Chocolatey Server to deploy to',
+                                name: 'CHOCOLATEY_SERVER'
+                            )
+                        }
+                    }
+                    steps{
+                        unstash 'CHOCOLATEY_PACKAGE'
+                        deploy_to_chocolatey(CHOCOLATEY_SERVER)
+                    }
+                }
+                stage('Deploy Online Documentation') {
+                    when{
+                        equals expected: true, actual: params.DEPLOY_DOCS
+                        beforeAgent true
+                        beforeInput true
+                    }
+                    agent {
+                        dockerfile {
+                            filename 'ci/docker/linux/jenkins/Dockerfile'
+                            label 'linux && docker'
+                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
+                          }
+                    }
+                    options{
+                        timeout(time: 1, unit: 'DAYS')
+                    }
+                    input {
+                        message 'Update project documentation?'
+                    }
+                    steps{
+                        unstash 'DOCS_ARCHIVE'
+                        withCredentials([usernamePassword(credentialsId: 'dccdocs-server', passwordVariable: 'docsPassword', usernameVariable: 'docsUsername')]) {
+                            sh 'python contrib/upload_docs.py --username=$docsUsername --password=$docsPassword --subroute=speedwagon-uiucpreson build/docs/html apache-ns.library.illinois.edu'
+                        }
+                    }
+                    post{
+                        cleanup{
+                            cleanWs(
+                                deleteDirs: true,
+                                patterns: [
+                                    [pattern: 'build/', type: 'INCLUDE'],
+                                    [pattern: 'dist/', type: 'INCLUDE'],
+                                ]
+                            )
+                        }
+                    }
+                }
+                stage('Deploy Standalone'){
+                    when {
+                        allOf{
+                            equals expected: true, actual: params.DEPLOY_STANDALONE_PACKAGERS
+                            anyOf{
+                                equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                                equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                             }
+                        }
+                        beforeAgent true
+                        beforeInput true
+                    }
+                    agent any
+                    input {
+                        message 'Upload to Nexus server?'
+                        parameters {
+                            credentials credentialType: 'com.cloudbees.plugins.credentials.common.StandardCredentials', defaultValue: 'jenkins-nexus', name: 'NEXUS_CREDS', required: true
+                            choice(
+                                choices: getStandAloneStorageServers(),
+                                description: 'Url to upload artifact.',
+                                name: 'SERVER_URL'
+                            )
+                            string defaultValue: "speedwagon_uiuc/${props.version}", description: 'subdirectory to store artifact', name: 'archiveFolder'
+                        }
+                    }
+                    options {
+                        skipDefaultCheckout(true)
+                    }
+                    stages{
+                        stage('Include Mac Bundle Installer for Deployment'){
                             when{
                                 allOf{
-                                    equals expected: true, actual: params.DEPLOY_PYPI
-                                    equals expected: true, actual: params.BUILD_PACKAGES
-                                }
-                                beforeAgent true
-                                beforeInput true
-                            }
-                            options{
-                                retry(3)
-                            }
-                            input {
-                                message 'Upload to pypi server?'
-                                parameters {
-                                    choice(
-                                        choices: getPypiConfig(),
-                                        description: 'Url to the pypi index to upload python packages.',
-                                        name: 'SERVER_URL'
-                                    )
-                                }
-                            }
-                            steps{
-                                unstash 'PYTHON_PACKAGES'
-                                pypiUpload(
-                                    credentialsId: 'jenkins-nexus',
-                                    repositoryUrl: SERVER_URL,
-                                    glob: 'dist/*'
-                                )
-                            }
-                            post{
-                                cleanup{
-                                    cleanWs(
-                                        deleteDirs: true,
-                                        patterns: [
-                                                [pattern: 'dist/', type: 'INCLUDE']
-                                            ]
-                                    )
-                                }
-                            }
-                        }
-                        stage('Deploy to Chocolatey') {
-                            when{
-                                equals expected: true, actual: params.DEPLOY_CHOCOLATEY
-                                beforeInput true
-                                beforeAgent true
-                            }
-                            agent {
-                                dockerfile {
-                                    filename 'ci/docker/windows/tox/Dockerfile'
-                                    label 'windows && docker && x86'
-                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE'
-                                  }
-                            }
-                            options{
-                                timeout(time: 1, unit: 'DAYS')
-                                retry(3)
-                            }
-                            input {
-                                message 'Deploy to Chocolatey server'
-                                id 'CHOCOLATEY_DEPLOYMENT'
-                                parameters {
-                                    choice(
-                                        choices: getChocolateyServers(),
-                                        description: 'Chocolatey Server to deploy to',
-                                        name: 'CHOCOLATEY_SERVER'
-                                    )
-                                }
-                            }
-                            steps{
-                                unstash 'CHOCOLATEY_PACKAGE'
-                                deploy_to_chocolatey(CHOCOLATEY_SERVER)
-                            }
-                        }
-                        stage('Deploy Online Documentation') {
-                            when{
-                                equals expected: true, actual: params.DEPLOY_DOCS
-                                beforeAgent true
-                                beforeInput true
-                            }
-                            agent {
-                                dockerfile {
-                                    filename 'ci/docker/linux/jenkins/Dockerfile'
-                                    label 'linux && docker'
-                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-                                  }
-                            }
-                            options{
-                                timeout(time: 1, unit: 'DAYS')
-                            }
-                            input {
-                                message 'Update project documentation?'
-                            }
-                            steps{
-                                unstash 'DOCS_ARCHIVE'
-                                withCredentials([usernamePassword(credentialsId: 'dccdocs-server', passwordVariable: 'docsPassword', usernameVariable: 'docsUsername')]) {
-                                    sh 'python contrib/upload_docs.py --username=$docsUsername --password=$docsPassword --subroute=speedwagon-uiucpreson build/docs/html apache-ns.library.illinois.edu'
-                                }
-                            }
-                            post{
-                                cleanup{
-                                    cleanWs(
-                                        deleteDirs: true,
-                                        patterns: [
-                                            [pattern: 'build/', type: 'INCLUDE'],
-                                            [pattern: 'dist/', type: 'INCLUDE'],
-                                        ]
-                                    )
-                                }
-                            }
-                        }
-                        stage('Deploy Standalone'){
-//                            when {
-//                                allOf{
-//                                    equals expected: true, actual: params.DEPLOY_STANDALONE_PACKAGERS
-//                                    anyOf{
-//                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_NSIS
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_ZIP
-//                                    }
-//                                }
-//                                beforeAgent true
-//                                beforeInput true
-//
-//                            }
-                            agent any
-//                            input {
-//                                message 'Upload to Nexus server?'
-//                                parameters {
-//                                    credentials credentialType: 'com.cloudbees.plugins.credentials.common.StandardCredentials', defaultValue: 'jenkins-nexus', name: 'NEXUS_CREDS', required: true
-//                                    choice(
-//                                        choices: getStandAloneStorageServers(),
-//                                        description: 'Url to upload artifact.',
-//                                        name: 'SERVER_URL'
-//                                    )
-//                                    string defaultValue: "speedwagon/${props.version}", description: 'subdirectory to store artifact', name: 'archiveFolder'
-//                                }
-//                            }
-//                            options {
-//                                skipDefaultCheckout(true)
-//                            }
-                            stages{
-//                                stage('Include Mac Bundle Installer for Deployment'){
-//                                    when{
-//                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-//                                    }
-//                                    steps {
-//                                        unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
-//                                        unstash 'APPLE_APPLICATION_BUNDLE_M1'
-//                                    }
-//                                }
-                                stage('Include Windows Installer(s) for Deployment'){
-//                                    when{
-//                                        anyOf{
-//                                            equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
-//                                            equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_NSIS
-//                                            equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_ZIP
-//                                        }
-//                                    }
-                                    steps {
-                                        unstash 'STANDALONE_WINDOWS_INSTALLER'
+                                    equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                                    anyOf{
+                                        equals expected: true, actual: params.INCLUDE_MACOS_X86_64
+                                        equals expected: true, actual: params.INCLUDE_MACOS_ARM
+
                                     }
                                 }
-//                                stage('Include PDF Documentation for Deployment'){
-//                                    steps {
-//                                        unstash 'SPEEDWAGON_DOC_PDF'
-//                                    }
-//                                }
-//                                stage('Deploy'){
-//                                    steps {
-//                                        deployStandalone('dist/*.msi,dist/*.exe,dist/*.zip,dist/*.tar.gz,dist/docs/*.pdf,dist/*.dmg', "${SERVER_URL}/${archiveFolder}")
-//                                    }
-//                                    post{
-//                                        cleanup{
-//                                            cleanWs(
-//                                                deleteDirs: true,
-//                                                patterns: [
-//                                                    [pattern: 'dist.*', type: 'INCLUDE']
-//                                                ]
-//                                            )
-//                                        }
-//                                    }
-//                                }
                             }
+                            steps {
+                                script{
+                                    if(params.INCLUDE_MACOS_X86_64){
+                                        unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                    }
+                                    if(params.INCLUDE_MACOS_ARM){
+                                        unstash 'APPLE_APPLICATION_BUNDLE_M1'
+                                    }
+                                }
+                            }
+                        }
+                        stage('Include Windows Installer(s) for Deployment'){
+                            when{
+                                equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
+                            }
+                            steps {
+                                unstash 'STANDALONE_WINDOWS_INSTALLER'
+                            }
+                        }
+                        stage('Deploy'){
+                            steps {
+                                unstash 'SPEEDWAGON_DOC_PDF'
+                                deployStandalone('dist/*.msi,dist/*.exe,dist/*.zip,dist/*.tar.gz,dist/docs/*.pdf,dist/*.dmg', "${SERVER_URL}/${archiveFolder}")
+                            }
+                        }
+                    }
+                    post{
+                        cleanup{
+                            cleanWs(
+                                deleteDirs: true,
+                                patterns: [
+                                    [pattern: 'dist.*', type: 'INCLUDE']
+                                ]
+                            )
                         }
                     }
                 }
