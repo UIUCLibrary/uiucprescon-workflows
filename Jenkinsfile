@@ -1028,6 +1028,7 @@ pipeline {
                                             filename 'ci/docker/windows/tox/Dockerfile'
                                             label 'windows && docker && x86'
                                             additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
+                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip'
                                           }
                                     }
                                     stages{
@@ -1091,6 +1092,7 @@ pipeline {
                                             filename 'ci/docker/windows/tox/Dockerfile'
                                             label 'windows && docker && x86'
                                             additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
+                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip'
                                           }
                                     }
                                     stages{
