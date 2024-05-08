@@ -3,9 +3,26 @@ library identifier: 'JenkinsPythonHelperLibrary@2024.1.2', retriever: modernSCM(
    remote: 'https://github.com/UIUCLibrary/JenkinsPythonHelperLibrary.git',
    ])
 
+BUNDLED_PYTHON_VERSION = '3.11.9'
+
 SUPPORTED_MAC_VERSIONS = ['3.9', '3.10', '3.11']
 SUPPORTED_LINUX_VERSIONS = ['3.8', '3.9', '3.10', '3.11']
 SUPPORTED_WINDOWS_VERSIONS = ['3.8', '3.9', '3.10', '3.11']
+
+def deployStandalone(glob, url) {
+    script{
+        findFiles(glob: glob).each{
+            try{
+                def encodedUrlFileName = new URI(null, null, it.name, null).toASCIIString()
+                def putResponse = httpRequest authentication: NEXUS_CREDS, httpMode: 'PUT', uploadFile: it.path, url: "${url}/${encodedUrlFileName}", wrapAsMultipart: false
+                echo "http request response: ${putResponse.content}"
+            } catch(Exception e){
+                echo "${e}"
+                throw e;
+            }
+        }
+    }
+}
 
 def getChocolateyServers() {
     retry(conditions: [agent()], count: 3) {
@@ -66,6 +83,19 @@ def getDevpiConfig() {
         }
     }
 }
+
+def getStandAloneStorageServers(){
+    retry(conditions: [agent()], count: 3) {
+        node(){
+            configFileProvider([configFile(fileId: 'deploymentStorageConfig', variable: 'CONFIG_FILE')]) {
+                def config = readJSON( file: CONFIG_FILE)
+                return config['publicReleases']['urls']
+            }
+        }
+    }
+}
+
+
 def DEVPI_CONFIG = getDevpiConfig()
 
 def getPypiConfig() {
@@ -78,6 +108,7 @@ def getPypiConfig() {
         }
     }
 }
+
 
 def testPythonPackages(){
     script{
@@ -516,8 +547,6 @@ pipeline {
         credentials(name: 'SONARCLOUD_TOKEN', credentialType: 'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl', defaultValue: 'sonarcloud_token', required: false)
         booleanParam(name: 'TEST_RUN_TOX', defaultValue: false, description: 'Run Tox Tests')
         booleanParam(name: 'BUILD_PACKAGES', defaultValue: false, description: 'Build Packages')
-//        booleanParam(name: 'TEST_STANDALONE_PACKAGE_DEPLOYMENT', defaultValue: true, description: 'Test deploying any packages that are designed to be installed without using Python directly')
-        booleanParam(name: 'BUILD_CHOCOLATEY_PACKAGE', defaultValue: false, description: 'Build package for chocolatey package manager')
         booleanParam(name: 'INCLUDE_LINUX_ARM', defaultValue: false, description: 'Include ARM architecture for Linux')
         booleanParam(name: 'INCLUDE_LINUX_X86_64', defaultValue: true, description: 'Include x86_64 architecture for Linux')
         booleanParam(name: 'INCLUDE_MACOS_ARM', defaultValue: false, description: 'Include ARM(m1) architecture for Mac')
@@ -525,14 +554,13 @@ pipeline {
         booleanParam(name: 'INCLUDE_WINDOWS_X86_64', defaultValue: true, description: 'Include x86_64 architecture for Windows')
         booleanParam(name: 'TEST_PACKAGES', defaultValue: true, description: 'Test Python packages by installing them and running tests on the installed package')
         booleanParam(name: 'PACKAGE_MAC_OS_STANDALONE_DMG', defaultValue: false, description: 'Create a Apple Application Bundle DMG')
-//        booleanParam(name: 'PACKAGE_WINDOWS_STANDALONE_MSI', defaultValue: false, description: 'Create a standalone wix based .msi installer')
-//        booleanParam(name: 'PACKAGE_WINDOWS_STANDALONE_NSIS', defaultValue: false, description: 'Create a standalone NULLSOFT NSIS based .exe installer')
-//        booleanParam(name: 'PACKAGE_WINDOWS_STANDALONE_ZIP', defaultValue: false, description: 'Create a standalone portable package')
+        booleanParam(name: 'PACKAGE_FOR_CHOCOLATEY', defaultValue: false, description: 'Build package for chocolatey package manager')
+        booleanParam(name: 'PACKAGE_STANDALONE_WINDOWS_INSTALLER', defaultValue: false, description: 'Create a standalone wix based .msi installer')
         booleanParam(name: 'DEPLOY_DEVPI', defaultValue: false, description: "Deploy to DevPi on ${DEVPI_CONFIG.server}/DS_Jenkins/${env.BRANCH_NAME}")
         booleanParam(name: 'DEPLOY_DEVPI_PRODUCTION', defaultValue: false, description: "Deploy to ${DEVPI_CONFIG.server}/production/release")
         booleanParam(name: 'DEPLOY_PYPI', defaultValue: false, description: 'Deploy to pypi')
         booleanParam(name: 'DEPLOY_CHOCOLATEY', defaultValue: false, description: 'Deploy to Chocolatey repository')
-//        booleanParam(name: 'DEPLOY_STANDALONE_PACKAGERS', defaultValue: false, description: 'Deploy standalone packages')
+        booleanParam(name: 'DEPLOY_STANDALONE_PACKAGERS', defaultValue: false, description: 'Deploy standalone packages')
         booleanParam(name: 'DEPLOY_DOCS', defaultValue: false, description: 'Update online documentation')
     }
     stages {
@@ -842,368 +870,305 @@ pipeline {
             }
         }
         stage('Packaging'){
-                when{
-                    anyOf{
-                        equals expected: true, actual: params.BUILD_PACKAGES
-                        equals expected: true, actual: params.BUILD_CHOCOLATEY_PACKAGE
-                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-//                        equals expected: true, actual: params.DEPLOY_STANDALONE_PACKAGES
-                        equals expected: true, actual: params.DEPLOY_DEVPI
-                        equals expected: true, actual: params.DEPLOY_DEVPI_PRODUCTION
-                        equals expected: true, actual: params.DEPLOY_CHOCOLATEY
-//                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
-//                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_NSIS
-//                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_ZIP
-                    }
-                    beforeAgent true
+            when{
+                anyOf{
+                    equals expected: true, actual: params.BUILD_PACKAGES
+                    equals expected: true, actual: params.PACKAGE_FOR_CHOCOLATEY
+                    equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                    equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
+                    equals expected: true, actual: params.DEPLOY_DEVPI
+                    equals expected: true, actual: params.DEPLOY_DEVPI_PRODUCTION
+                    equals expected: true, actual: params.DEPLOY_CHOCOLATEY
                 }
-                stages{
-                    stage('Python Packages'){
-                        stages{
-                            stage('Packaging sdist and wheel'){
-                                agent {
-                                    docker{
-                                        image 'python'
-                                        label 'linux && docker'
-                                    }
-                                }
-                                options {
-                                    timeout(5)
-                                }
-                                steps{
-                                    withEnv(['PIP_NO_CACHE_DIR=off']) {
-                                        sh(label: 'Building Python Package',
-                                           script: '''python -m venv venv --upgrade-deps
-                                                      venv/bin/pip install build
-                                                      venv/bin/python -m build .
-                                                      '''
-                                           )
-                                   }
-                                }
-                                post{
-                                    always{
-                                        stash includes: 'dist/*.whl,dist/*.tar.gz,dist/*.zip', name: 'PYTHON_PACKAGES'
-                                    }
-                                    cleanup{
-                                        cleanWs(
-                                            deleteDirs: true,
-                                            patterns: [
-                                                [pattern: '**/__pycache__/', type: 'INCLUDE'],
-                                                [pattern: 'venv/', type: 'INCLUDE'],
-                                                [pattern: 'dist/', type: 'INCLUDE']
-                                                ]
-                                            )
-                                    }
+                beforeAgent true
+            }
+            stages{
+                stage('Python Packages'){
+                    stages{
+                        stage('Packaging sdist and wheel'){
+                            agent {
+                                docker{
+                                    image 'python'
+                                    label 'linux && docker'
                                 }
                             }
-                            stage('Testing Python Package'){
-                                when{
-                                    equals expected: true, actual: params.TEST_PACKAGES
+                            options {
+                                timeout(5)
+                            }
+                            steps{
+                                withEnv(['PIP_NO_CACHE_DIR=off']) {
+                                    sh(label: 'Building Python Package',
+                                       script: '''python -m venv venv --upgrade-deps
+                                                  venv/bin/pip install build
+                                                  venv/bin/python -m build .
+                                                  '''
+                                       )
+                               }
+                            }
+                            post{
+                                always{
+                                    stash includes: 'dist/*.whl,dist/*.tar.gz,dist/*.zip', name: 'PYTHON_PACKAGES'
                                 }
-                                steps{
-                                    testPythonPackages()
+                                cleanup{
+                                    cleanWs(
+                                        deleteDirs: true,
+                                        patterns: [
+                                            [pattern: '**/__pycache__/', type: 'INCLUDE'],
+                                            [pattern: 'venv/', type: 'INCLUDE'],
+                                            [pattern: 'dist/', type: 'INCLUDE']
+                                            ]
+                                        )
                                 }
                             }
                         }
+                        stage('Testing Python Package'){
+                            when{
+                                equals expected: true, actual: params.TEST_PACKAGES
+                            }
+                            steps{
+                                testPythonPackages()
+                            }
+                        }
                     }
-                    stage('End-user packages'){
-                        parallel{
-                            stage('Mac Application Bundle x86_64'){
-                                agent{
-                                    label 'mac && python3.11 && x86_64'
+                }
+                stage('End-user packages'){
+                    parallel{
+                        stage('Mac Application Bundle x86_64'){
+                            agent{
+                                label 'mac && python3.11 && x86_64'
+                            }
+                            when{
+                                allOf{
+                                    equals expected: true, actual: params.INCLUDE_MACOS_X86_64
+                                    equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                                    expression {return nodesByLabel('mac && python3.11 && x86_64').size() > 0}
                                 }
-                                when{
-                                    allOf{
-                                        equals expected: true, actual: params.INCLUDE_MACOS_X86_64
-                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-                                        expression {return nodesByLabel('mac && python3.11 && x86_64').size() > 0}
+                                beforeInput true
+                            }
+                            steps{
+                                unstash 'PYTHON_PACKAGES'
+                                script{
+                                    findFiles(glob: 'dist/*.whl').each{ wheel ->
+                                        sh "./contrib/make_osx_dist.sh --using-wheel ${wheel} --base-python python3.11"
                                     }
-                                    beforeInput true
                                 }
-                                steps{
+                            }
+                            post{
+                                success{
+                                    archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                    stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                }
+                                cleanup{
+                                    cleanWs(
+                                        deleteDirs: true,
+                                        patterns: [
+                                            [pattern: 'dist/', type: 'INCLUDE'],
+                                            [pattern: 'build/', type: 'INCLUDE'],
+                                            [pattern: 'venv/', type: 'INCLUDE'],
+                                        ]
+                                    )
+                                }
+                            }
+                        }
+                        stage('Mac Application Bundle M1'){
+                            agent{
+                                label 'mac && python3.11 && arm64'
+                            }
+                            when{
+                                allOf{
+                                    equals expected: true, actual: params.INCLUDE_MACOS_ARM
+                                    equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                                    expression {return nodesByLabel('mac && python3.11 && arm64').size() > 0}
+                                }
+                                beforeInput true
+                            }
+                            steps{
+                                script{
                                     unstash 'PYTHON_PACKAGES'
-                                    script{
-                                        findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                            sh "./contrib/make_osx_dist.sh --using-wheel ${wheel} --base-python python3.11"
-                                        }
+                                    findFiles(glob: 'dist/*.whl').each{ wheel ->
+                                        sh "./contrib/make_osx_dist.sh --using-wheel ${wheel} --base-python python3.11"
                                     }
                                 }
-                                post{
-                                    success{
-                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
-                                    }
-                                    cleanup{
-                                        cleanWs(
-                                            deleteDirs: true,
-                                            patterns: [
-                                                [pattern: 'dist/', type: 'INCLUDE'],
-                                                [pattern: 'build/', type: 'INCLUDE'],
-                                                [pattern: 'venv/', type: 'INCLUDE'],
-                                            ]
+                            }
+                            post{
+                                success{
+                                    archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                    stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
+                                }
+                                cleanup{
+                                    cleanWs(
+                                        deleteDirs: true,
+                                        patterns: [
+                                            [pattern: 'dist/', type: 'INCLUDE'],
+                                            [pattern: 'build/', type: 'INCLUDE'],
+                                            [pattern: 'venv/', type: 'INCLUDE'],
+                                        ]
+                                    )
+                                }
+                            }
+                        }
+                        stage('Windows Installer for x86_64'){
+                            when{
+                                equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
+                                beforeAgent true
+                            }
+                            agent {
+                                dockerfile {
+                                    filename 'ci/docker/windows/tox/Dockerfile'
+                                    label 'windows && docker && x86'
+                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
+                                    args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip'
+                                  }
+                            }
+                            steps{
+                                unstash 'PYTHON_PACKAGES'
+                                script{
+                                    findFiles(glob: 'dist/*.whl').each{
+                                        powershell(
+                                            label: "Create standalone windows version",
+                                            script: """Invoke-WebRequest -URI https://www.python.org/ftp/python/${BUNDLED_PYTHON_VERSION}/python-${BUNDLED_PYTHON_VERSION}-embed-amd64.zip -OutFile python-${BUNDLED_PYTHON_VERSION}-embed-amd64.zip
+                                                       python -m venv venv --upgrade-deps
+                                                       venv\\Scripts\\pip install cmake pkginfo
+                                                       venv\\Scripts\\python contrib\\make_standalone_windows.py ${it} python-${BUNDLED_PYTHON_VERSION}-embed-amd64.zip -r requirements.txt
+                                                    """
                                         )
                                     }
                                 }
                             }
-                            stage('Mac Application Bundle M1'){
-                                agent{
-                                    label 'mac && python3.11 && arm64'
+                            post{
+                                success{
+                                    archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
+                                    stash includes: 'dist/*.msi', name: 'STANDALONE_WINDOWS_INSTALLER'
                                 }
-                                when{
-                                    allOf{
-                                        equals expected: true, actual: params.INCLUDE_MACOS_ARM
-                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-                                        expression {return nodesByLabel('mac && python3.11 && arm64').size() > 0}
-                                    }
-                                    beforeInput true
-                                }
-                                steps{
-                                    script{
-                                        unstash 'PYTHON_PACKAGES'
-                                        findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                            sh "./contrib/make_osx_dist.sh --using-wheel ${wheel} --base-python python3.11"
-                                        }
-                                    }
-                                }
-                                post{
-                                    success{
-                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
-                                    }
-                                    cleanup{
-                                        cleanWs(
-                                            deleteDirs: true,
-                                            patterns: [
-                                                [pattern: 'dist/', type: 'INCLUDE'],
-                                                [pattern: 'build/', type: 'INCLUDE'],
-                                                [pattern: 'venv/', type: 'INCLUDE'],
-                                            ]
-                                        )
-                                    }
+                                cleanup{
+                                    cleanWs(
+                                        deleteDirs: true,
+                                        patterns: [
+                                            [pattern: 'build/', type: 'INCLUDE'],
+                                            [pattern: 'dist/', type: 'INCLUDE'],
+                                            [pattern: 'venv/', type: 'INCLUDE'],
+                                        ]
+                                    )
                                 }
                             }
-                            stage('Chocolatey'){
-                                when{
-                                    anyOf{
-                                        equals expected: true, actual: params.DEPLOY_CHOCOLATEY
-                                        equals expected: true, actual: params.BUILD_CHOCOLATEY_PACKAGE
-                                    }
-                                    beforeInput true
+                        }
+                        stage('Chocolatey'){
+                            when{
+                                anyOf{
+                                    equals expected: true, actual: params.DEPLOY_CHOCOLATEY
+                                    equals expected: true, actual: params.PACKAGE_FOR_CHOCOLATEY
                                 }
-                                stages{
-                                    stage('Build Chocolatey Package'){
-                                        agent {
-                                            dockerfile {
-                                                filename 'ci/docker/windows/tox/Dockerfile'
-                                                label 'windows && docker && x86'
-                                                additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
-                                              }
-                                        }
-                                        stages{
-                                            stage('Building Python Vendored Wheels'){
-                                                steps{
-                                                    withEnv(['PY_PYTHON=3.11']) {
-                                                        bat(
-                                                            label: 'Getting dependencies to vendor',
-                                                            script: '''
-                                                                py -m pip install pip --upgrade
-                                                                py -m pip install wheel
-                                                                py -m pip wheel -r requirements/requirements-vendor.txt --no-deps -w .\\deps\\ -i %PIP_EXTRA_INDEX_URL%
-                                                            '''
-                                                        )
-                                                    }
-                                                    stash includes: 'deps/*.whl', name: 'VENDORED_WHEELS_FOR_CHOCOLATEY'
-                                                }
-                                            }
-                                            stage('Package for Chocolatey'){
-                                                steps{
-                                                    unstash 'PYTHON_PACKAGES'
-                                                    script {
-                                                        def version = sanitize_chocolatey_version(props.version)
-                                                        findFiles(glob: 'dist/*.whl').each{
-                                                            powershell(
-                                                                label: 'Creating new Chocolatey package',
-                                                                script: """contrib/make_chocolatey.ps1 `
-                                                                            -PackageName 'Speedwagon_uiucprescon' `
-                                                                            -PackageSummary \"${props.description}\" `
-                                                                            -StartMenuLinkName 'Speedwagon (UIUC Prescon Prerelease)' `
-                                                                            -PackageVersion ${props.version} `
-                                                                            -PackageMaintainer \"${props.maintainers[0].name}\" `
-                                                                            -Wheel ${it.path} `
-                                                                            -DependenciesDir '.\\deps' `
-                                                                            -Requirements '.\\requirements\\requirements-freeze.txt' `
-                                                                        """
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                                post{
-                                                    always{
-                                                        archiveArtifacts artifacts: 'packages/**/*.nuspec,packages/*.nupkg'
-                                                        stash includes: 'packages/*.nupkg', name: 'CHOCOLATEY_PACKAGE'
-                                                    }
-                                                    cleanup{
-                                                        cleanWs(
-                                                            deleteDirs: true,
-                                                            patterns: [
-                                                                [pattern: 'packages/', type: 'INCLUDE']
-                                                                ]
-                                                            )
-                                                    }
-                                                }
-                                            }
-                                        }
+                                beforeInput true
+                            }
+                            stages{
+                                stage('Build Chocolatey Package'){
+                                    agent {
+                                        dockerfile {
+                                            filename 'ci/docker/windows/tox/Dockerfile'
+                                            label 'windows && docker && x86'
+                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
+                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip'
+                                          }
                                     }
-                                    stage('Testing Chocolatey Package'){
-                                        agent {
-                                            dockerfile {
-                                                filename 'ci/docker/windows/tox/Dockerfile'
-                                                label 'windows && docker && x86'
-                                                additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
-                                              }
-                                        }
-                                        stages{
-                                            stage('Install Chocolatey Package'){
-                                                steps{
-                                                    unstash 'CHOCOLATEY_PACKAGE'
-                                                    script{
-                                                        def version = sanitize_chocolatey_version(props.version)
-
-                                                        powershell(script: "choco install speedwagon_uiucprescon -y -dv  --version=${sanitize_chocolatey_version(props.version)} -s \'./packages/;CHOCOLATEY_SOURCE;chocolatey\' --no-progress")
-
-
-                                                    }
-                                                }
-                                            }
-                                            stage('Verify Installed Package'){
-                                                steps{
-                                                    powershell(
-                                                        label: 'Checking everything installed correctly',
-                                                        script: 'contrib/ensure_installed_property.ps1 -StartMenuShortCut "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestSpeedwagonVersion -TestInChocolateyList speedwagon_uiucprescon'
+                                    stages{
+                                        stage('Building Python Vendored Wheels'){
+                                            steps{
+                                                withEnv(['PY_PYTHON=3.11']) {
+                                                    bat(
+                                                        label: 'Getting dependencies to vendor',
+                                                        script: '''
+                                                            py -m pip install pip --upgrade
+                                                            py -m pip install wheel
+                                                            py -m pip wheel -r requirements/requirements-vendor.txt --no-deps -w .\\deps\\ -i %PIP_EXTRA_INDEX_URL%
+                                                        '''
                                                     )
                                                 }
+                                                stash includes: 'deps/*.whl', name: 'VENDORED_WHEELS_FOR_CHOCOLATEY'
                                             }
-                                            stage('Uninstall Chocolatey Package'){
-                                                steps{
-                                                    powershell(script: 'choco uninstall speedwagon_uiucprescon -y')
+                                        }
+                                        stage('Package for Chocolatey'){
+                                            steps{
+                                                unstash 'PYTHON_PACKAGES'
+                                                script {
+                                                    def version = sanitize_chocolatey_version(props.version)
+                                                    findFiles(glob: 'dist/*.whl').each{
+                                                        powershell(
+                                                            label: 'Creating new Chocolatey package',
+                                                            script: """contrib/make_chocolatey.ps1 `
+                                                                        -PackageName 'Speedwagon_uiucprescon' `
+                                                                        -PackageSummary \"${props.description}\" `
+                                                                        -StartMenuLinkName 'Speedwagon (UIUC Prescon Prerelease)' `
+                                                                        -PackageVersion ${props.version} `
+                                                                        -PackageMaintainer \"${props.maintainers[0].name}\" `
+                                                                        -Wheel ${it.path} `
+                                                                        -DependenciesDir '.\\deps' `
+                                                                        -Requirements '.\\requirements\\requirements-freeze.txt' `
+                                                                    """
+                                                        )
+                                                    }
                                                 }
                                             }
-                                            stage('Verify Uninstalled Package'){
-                                                steps{
-                                                    powershell(script: 'contrib/ensure_uninstalled.ps1 -StartMenuShortCutRemoved "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestInChocolateyList speedwagon_uiucprescon')
+                                            post{
+                                                always{
+                                                    archiveArtifacts artifacts: 'packages/**/*.nuspec,packages/*.nupkg'
+                                                    stash includes: 'packages/*.nupkg', name: 'CHOCOLATEY_PACKAGE'
+                                                }
+                                                cleanup{
+                                                    cleanWs(
+                                                        deleteDirs: true,
+                                                        patterns: [
+                                                            [pattern: 'packages/', type: 'INCLUDE']
+                                                            ]
+                                                        )
                                                 }
                                             }
                                         }
                                     }
                                 }
+                                stage('Testing Chocolatey Package'){
+                                    agent {
+                                        dockerfile {
+                                            filename 'ci/docker/windows/tox/Dockerfile'
+                                            label 'windows && docker && x86'
+                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip'
+                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip'
+                                          }
+                                    }
+                                    stages{
+                                        stage('Install Chocolatey Package'){
+                                            steps{
+                                                unstash 'CHOCOLATEY_PACKAGE'
+                                                script{
+                                                    def version = sanitize_chocolatey_version(props.version)
+
+                                                    powershell(script: "choco install speedwagon_uiucprescon -y -dv  --version=${sanitize_chocolatey_version(props.version)} -s \'./packages/;CHOCOLATEY_SOURCE;chocolatey\' --no-progress")
+
+
+                                                }
+                                            }
+                                        }
+                                        stage('Verify Installed Package'){
+                                            steps{
+                                                powershell(
+                                                    label: 'Checking everything installed correctly',
+                                                    script: 'contrib/ensure_installed_property.ps1 -StartMenuShortCut "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestSpeedwagonVersion -TestInChocolateyList speedwagon_uiucprescon'
+                                                )
+                                            }
+                                        }
+                                        stage('Uninstall Chocolatey Package'){
+                                            steps{
+                                                powershell(script: 'choco uninstall speedwagon_uiucprescon -y')
+                                            }
+                                        }
+                                        stage('Verify Uninstalled Package'){
+                                            steps{
+                                                powershell(script: 'contrib/ensure_uninstalled.ps1 -StartMenuShortCutRemoved "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestInChocolateyList speedwagon_uiucprescon')
+                                            }
+                                        }
+                                    }
+                                }
                             }
-//                            stage('Windows Standalone'){
-//                                when{
-//                                    anyOf{
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_NSIS
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_ZIP
-//                                    }
-//                                    beforeAgent true
-//                                }
-//                                stages{
-//                                    stage('CMake Build'){
-//                                        agent {
-//                                            dockerfile {
-//                                                filename 'ci/docker/windows_standalone/Dockerfile'
-//                                                label 'Windows && Docker && x86'
-//                                                args '-u ContainerAdministrator'
-//                                                additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE'
-//                                              }
-//                                        }
-//                                        steps {
-//                                            unstash 'SPEEDWAGON_DOC_PDF'
-//                                            script{
-//                                                withEnv(["build_number=${get_build_number()}"]) {
-//                                                    load('ci/jenkins/scripts/standalone.groovy').build_standalone(
-//                                                        packageFormat: [
-//                                                            msi: params.PACKAGE_WINDOWS_STANDALONE_MSI,
-//                                                            nsis: params.PACKAGE_WINDOWS_STANDALONE_NSIS,
-//                                                            zipFile: params.PACKAGE_WINDOWS_STANDALONE_ZIP,
-//                                                        ],
-//                                                        vendoredPythonRequirementsFile: 'requirements/requirements-gui-freeze.txt',
-//                                                        buildDir: 'build\\cmake_build',
-//                                                        venvPath: "${WORKSPACE}\\build\\standalone_venv",
-//                                                        package: [
-//                                                            version: props.version
-//                                                        ],
-//                                                        testing:[
-//                                                            ctestLogsFilePath: "${WORKSPACE}\\logs\\ctest.log"
-//                                                        ]
-//                                                    )
-//                                                }
-//                                            }
-//                                            stash includes: 'dist/*.msi,dist/*.exe,dist/*.zip', name: 'STANDALONE_INSTALLERS'
-//                                        }
-//                                        post {
-//                                            success{
-//                                                archiveArtifacts artifacts: 'dist/*.msi,dist/*.exe,dist/*.zip', fingerprint: true
-//                                            }
-//                                            failure {
-//                                                archiveArtifacts allowEmptyArchive: true, artifacts: 'dist/**/wix.log,dist/**/*.wxs'
-//                                                archiveArtifacts allowEmptyArchive: true, artifacts: 'logs/**'
-//                                            }
-//                                            cleanup{
-//                                                cleanWs(
-//                                                    patterns: [
-//                                                            [pattern: '*.egg-info/**', type: 'INCLUDE'],
-//                                                            [pattern: '.pytest_cache/**', type: 'INCLUDE'],
-//                                                            [pattern: '**/__pycache__/', type: 'INCLUDE'],
-//                                                            [pattern: 'build/**', type: 'INCLUDE'],
-//                                                            [pattern: 'temp/**', type: 'INCLUDE'],
-//                                                            [pattern: 'dist/**', type: 'INCLUDE'],
-//                                                            [pattern: 'logs/**', type: 'INCLUDE'],
-//                                                        ],
-//                                                    notFailBuild: true,
-//                                                    deleteDirs: true
-//                                                )
-//                                            }
-//                                        }
-//                                    }
-//                                    stage('Testing MSI Install'){
-//                                        agent {
-//                                            docker {
-//                                                args '-u ContainerAdministrator'
-//                                                image 'mcr.microsoft.com/windows/servercore:ltsc2019'
-//                                                label 'Windows && Docker && x86'
-//                                            }
-//                                        }
-//                                        when{
-//                                            allOf{
-//                                                equals expected: true, actual: params.TEST_STANDALONE_PACKAGE_DEPLOYMENT
-//                                                equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
-//                                            }
-//                                            beforeAgent true
-//                                        }
-//                                        steps{
-//                                            timeout(15){
-//                                                unstash 'STANDALONE_INSTALLERS'
-//                                                script{
-//                                                    def standalone = load('ci/jenkins/scripts/standalone.groovy')
-//                                                    standalone.testInstall('dist/*.msi')
-//                                                }
-//                                            }
-//                                        }
-//                                        post {
-//                                            cleanup{
-//                                                cleanWs(
-//                                                    deleteDirs: true,
-//                                                    notFailBuild: true,
-//                                                    patterns: [
-//                                                        [pattern: 'dist/', type: 'INCLUDE']
-//                                                    ]
-//                                                )
-//                                            }
-//                                        }
-//                                    }
-//                                }
-//                            }
-//                        }
+                        }
                     }
                 }
                 stage('Deploy to Devpi'){
@@ -1233,7 +1198,7 @@ pipeline {
                                   }
                             }
                             steps {
-//                                milestone label: 'devpi_deploy'
+                                // milestone label: 'devpi_deploy'
                                 unstash 'DOCS_ARCHIVE'
                                 unstash 'PYTHON_PACKAGES'
                                 script{
@@ -1451,201 +1416,215 @@ pipeline {
                         }
                     }
                 }
-                stage('Deploy'){
-                    parallel {
-                        stage('Deploy to pypi') {
-                            agent {
-                                dockerfile {
-                                    filename 'ci/docker/linux/jenkins/Dockerfile'
-                                    label 'linux && docker'
-                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-                                }
+            }
+        }
+        stage('Deploy'){
+            when{
+                anyOf {
+                    equals expected: true, actual:  params.DEPLOY_PYPI
+                    equals expected: true, actual:  params.DEPLOY_CHOCOLATEY
+                    equals expected: true, actual:  params.DEPLOY_STANDALONE_PACKAGERS
+                    equals expected: true, actual:  params.DEPLOY_DOCS
+                }
+                beforeOptions true
+            }
+            options{
+                lock('uiucpreson_workflows-deploy')
+            }
+            parallel {
+                stage('Deploy to pypi') {
+                    agent {
+                        dockerfile {
+                            filename 'ci/docker/linux/jenkins/Dockerfile'
+                            label 'linux && docker'
+                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
+                        }
+                    }
+                    when{
+                        allOf{
+                            equals expected: true, actual: params.DEPLOY_PYPI
+                            equals expected: true, actual: params.BUILD_PACKAGES
+                        }
+                        beforeAgent true
+                        beforeInput true
+                    }
+                    options{
+                        retry(3)
+                    }
+                    input {
+                        message 'Upload to pypi server?'
+                        parameters {
+                            choice(
+                                choices: getPypiConfig(),
+                                description: 'Url to the pypi index to upload python packages.',
+                                name: 'SERVER_URL'
+                            )
+                        }
+                    }
+                    steps{
+                        unstash 'PYTHON_PACKAGES'
+                        pypiUpload(
+                            credentialsId: 'jenkins-nexus',
+                            repositoryUrl: SERVER_URL,
+                            glob: 'dist/*'
+                        )
+                    }
+                    post{
+                        cleanup{
+                            cleanWs(
+                                deleteDirs: true,
+                                patterns: [
+                                        [pattern: 'dist/', type: 'INCLUDE']
+                                    ]
+                            )
+                        }
+                    }
+                }
+                stage('Deploy to Chocolatey') {
+                    when{
+                        equals expected: true, actual: params.DEPLOY_CHOCOLATEY
+                        beforeInput true
+                        beforeAgent true
+                    }
+                    agent {
+                        dockerfile {
+                            filename 'ci/docker/windows/tox/Dockerfile'
+                            label 'windows && docker && x86'
+                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE'
+                          }
+                    }
+                    options{
+                        timeout(time: 1, unit: 'DAYS')
+                        retry(3)
+                    }
+                    input {
+                        message 'Deploy to Chocolatey server'
+                        id 'CHOCOLATEY_DEPLOYMENT'
+                        parameters {
+                            choice(
+                                choices: getChocolateyServers(),
+                                description: 'Chocolatey Server to deploy to',
+                                name: 'CHOCOLATEY_SERVER'
+                            )
+                        }
+                    }
+                    steps{
+                        unstash 'CHOCOLATEY_PACKAGE'
+                        deploy_to_chocolatey(CHOCOLATEY_SERVER)
+                    }
+                }
+                stage('Deploy Online Documentation') {
+                    when{
+                        equals expected: true, actual: params.DEPLOY_DOCS
+                        beforeAgent true
+                        beforeInput true
+                    }
+                    agent {
+                        dockerfile {
+                            filename 'ci/docker/linux/jenkins/Dockerfile'
+                            label 'linux && docker'
+                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
+                          }
+                    }
+                    options{
+                        timeout(time: 1, unit: 'DAYS')
+                    }
+                    input {
+                        message 'Update project documentation?'
+                    }
+                    steps{
+                        unstash 'DOCS_ARCHIVE'
+                        withCredentials([usernamePassword(credentialsId: 'dccdocs-server', passwordVariable: 'docsPassword', usernameVariable: 'docsUsername')]) {
+                            sh 'python contrib/upload_docs.py --username=$docsUsername --password=$docsPassword --subroute=speedwagon-uiucpreson build/docs/html apache-ns.library.illinois.edu'
+                        }
+                    }
+                    post{
+                        cleanup{
+                            cleanWs(
+                                deleteDirs: true,
+                                patterns: [
+                                    [pattern: 'build/', type: 'INCLUDE'],
+                                    [pattern: 'dist/', type: 'INCLUDE'],
+                                ]
+                            )
+                        }
+                    }
+                }
+                stage('Deploy Standalone'){
+                    when {
+                        allOf{
+                            equals expected: true, actual: params.DEPLOY_STANDALONE_PACKAGERS
+                            anyOf{
+                                equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                                equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                             }
+                        }
+                        beforeAgent true
+                        beforeInput true
+                    }
+                    agent any
+                    input {
+                        message 'Upload to Nexus server?'
+                        parameters {
+                            credentials credentialType: 'com.cloudbees.plugins.credentials.common.StandardCredentials', defaultValue: 'jenkins-nexus', name: 'NEXUS_CREDS', required: true
+                            choice(
+                                choices: getStandAloneStorageServers(),
+                                description: 'Url to upload artifact.',
+                                name: 'SERVER_URL'
+                            )
+                            string defaultValue: "speedwagon_uiuc/${props.version}", description: 'subdirectory to store artifact', name: 'archiveFolder'
+                        }
+                    }
+                    options {
+                        skipDefaultCheckout(true)
+                    }
+                    stages{
+                        stage('Include Mac Bundle Installer for Deployment'){
                             when{
                                 allOf{
-                                    equals expected: true, actual: params.DEPLOY_PYPI
-                                    equals expected: true, actual: params.BUILD_PACKAGES
-                                }
-                                beforeAgent true
-                                beforeInput true
-                            }
-                            options{
-                                retry(3)
-                            }
-                            input {
-                                message 'Upload to pypi server?'
-                                parameters {
-                                    choice(
-                                        choices: getPypiConfig(),
-                                        description: 'Url to the pypi index to upload python packages.',
-                                        name: 'SERVER_URL'
-                                    )
+                                    equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                                    anyOf{
+                                        equals expected: true, actual: params.INCLUDE_MACOS_X86_64
+                                        equals expected: true, actual: params.INCLUDE_MACOS_ARM
+
+                                    }
                                 }
                             }
-                            steps{
-                                unstash 'PYTHON_PACKAGES'
-                                pypiUpload(
-                                    credentialsId: 'jenkins-nexus',
-                                    repositoryUrl: SERVER_URL,
-                                    glob: 'dist/*'
-                                )
-                            }
-                            post{
-                                cleanup{
-                                    cleanWs(
-                                        deleteDirs: true,
-                                        patterns: [
-                                                [pattern: 'dist/', type: 'INCLUDE']
-                                            ]
-                                    )
+                            steps {
+                                script{
+                                    if(params.INCLUDE_MACOS_X86_64){
+                                        unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                    }
+                                    if(params.INCLUDE_MACOS_ARM){
+                                        unstash 'APPLE_APPLICATION_BUNDLE_M1'
+                                    }
                                 }
                             }
                         }
-                        stage('Deploy to Chocolatey') {
+                        stage('Include Windows Installer(s) for Deployment'){
                             when{
-                                equals expected: true, actual: params.DEPLOY_CHOCOLATEY
-                                beforeInput true
-                                beforeAgent true
+                                equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                             }
-                            agent {
-                                dockerfile {
-                                    filename 'ci/docker/windows/tox/Dockerfile'
-                                    label 'windows && docker && x86'
-                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE'
-                                  }
-                            }
-                            options{
-                                timeout(time: 1, unit: 'DAYS')
-                                retry(3)
-                            }
-                            input {
-                                message 'Deploy to Chocolatey server'
-                                id 'CHOCOLATEY_DEPLOYMENT'
-                                parameters {
-                                    choice(
-                                        choices: getChocolateyServers(),
-                                        description: 'Chocolatey Server to deploy to',
-                                        name: 'CHOCOLATEY_SERVER'
-                                    )
-                                }
-                            }
-                            steps{
-                                unstash 'CHOCOLATEY_PACKAGE'
-                                deploy_to_chocolatey(CHOCOLATEY_SERVER)
+                            steps {
+                                unstash 'STANDALONE_WINDOWS_INSTALLER'
                             }
                         }
-                        stage('Deploy Online Documentation') {
-                            when{
-                                equals expected: true, actual: params.DEPLOY_DOCS
-                                beforeAgent true
-                                beforeInput true
-                            }
-                            agent {
-                                dockerfile {
-                                    filename 'ci/docker/linux/jenkins/Dockerfile'
-                                    label 'linux && docker'
-                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-                                  }
-                            }
-                            options{
-                                timeout(time: 1, unit: 'DAYS')
-                            }
-                            input {
-                                message 'Update project documentation?'
-                            }
-                            steps{
-                                unstash 'DOCS_ARCHIVE'
-                                withCredentials([usernamePassword(credentialsId: 'dccdocs-server', passwordVariable: 'docsPassword', usernameVariable: 'docsUsername')]) {
-                                    sh 'python contrib/upload_docs.py --username=$docsUsername --password=$docsPassword --subroute=speedwagon-uiucpreson build/docs/html apache-ns.library.illinois.edu'
-                                }
-                            }
-                            post{
-                                cleanup{
-                                    cleanWs(
-                                        deleteDirs: true,
-                                        patterns: [
-                                            [pattern: 'build/', type: 'INCLUDE'],
-                                            [pattern: 'dist/', type: 'INCLUDE'],
-                                        ]
-                                    )
-                                }
+                        stage('Deploy'){
+                            steps {
+                                unstash 'SPEEDWAGON_DOC_PDF'
+                                deployStandalone('dist/*.msi,dist/*.exe,dist/*.zip,dist/*.tar.gz,dist/docs/*.pdf,dist/*.dmg', "${SERVER_URL}/${archiveFolder}")
                             }
                         }
-//                        stage('Deploy Standalone'){
-//                            when {
-//                                allOf{
-//                                    equals expected: true, actual: params.DEPLOY_STANDALONE_PACKAGERS
-//                                    anyOf{
-//                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_NSIS
-//                                        equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_ZIP
-//                                    }
-//                                }
-//                                beforeAgent true
-//                                beforeInput true
-//
-//                            }
-//                            agent any
-//                            input {
-//                                message 'Upload to Nexus server?'
-//                                parameters {
-//                                    credentials credentialType: 'com.cloudbees.plugins.credentials.common.StandardCredentials', defaultValue: 'jenkins-nexus', name: 'NEXUS_CREDS', required: true
-//                                    choice(
-//                                        choices: getStandAloneStorageServers(),
-//                                        description: 'Url to upload artifact.',
-//                                        name: 'SERVER_URL'
-//                                    )
-//                                    string defaultValue: "speedwagon/${props.version}", description: 'subdirectory to store artifact', name: 'archiveFolder'
-//                                }
-//                            }
-//                            options {
-//                                skipDefaultCheckout(true)
-//                            }
-//                            stages{
-//                                stage('Include Mac Bundle Installer for Deployment'){
-//                                    when{
-//                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-//                                    }
-//                                    steps {
-//                                        unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
-//                                        unstash 'APPLE_APPLICATION_BUNDLE_M1'
-//                                    }
-//                                }
-//                                stage('Include Windows Installer(s) for Deployment'){
-//                                    when{
-//                                        anyOf{
-//                                            equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_MSI
-//                                            equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_NSIS
-//                                            equals expected: true, actual: params.PACKAGE_WINDOWS_STANDALONE_ZIP
-//                                        }
-//                                    }
-//                                    steps {
-//                                        unstash 'STANDALONE_INSTALLERS'
-//                                    }
-//                                }
-//                                stage('Include PDF Documentation for Deployment'){
-//                                    steps {
-//                                        unstash 'SPEEDWAGON_DOC_PDF'
-//                                    }
-//                                }
-//                                stage('Deploy'){
-//                                    steps {
-//                                        deployStandalone('dist/*.msi,dist/*.exe,dist/*.zip,dist/*.tar.gz,dist/docs/*.pdf,dist/*.dmg', "${SERVER_URL}/${archiveFolder}")
-//                                    }
-//                                    post{
-//                                        cleanup{
-//                                            cleanWs(
-//                                                deleteDirs: true,
-//                                                patterns: [
-//                                                    [pattern: 'dist.*', type: 'INCLUDE']
-//                                                ]
-//                                            )
-//                                        }
-//                                    }
-//                                }
-//                            }
-//                        }
+                    }
+                    post{
+                        cleanup{
+                            cleanWs(
+                                deleteDirs: true,
+                                patterns: [
+                                    [pattern: 'dist.*', type: 'INCLUDE']
+                                ]
+                            )
+                        }
                     }
                 }
             }

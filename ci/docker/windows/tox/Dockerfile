@@ -47,6 +47,19 @@ RUN C:\ProgramData\chocolatey\bin\choco.exe sources ; `
         throw 'git.exe not found' ; `
     }; `
     Write-Host "Finished install packages with Chocolatey"
+
+ARG NUGET_PACKAGE_PATH=c:/nuget_packages/
+COPY ci/docker/windows/tox/nuget/packages.config c:\temp\packages.config
+COPY ci/docker/windows/tox/nuget/verify_installed_correctly.ps1 c:\temp\verify_installed_correctly.ps1
+RUN Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force ;`
+    Register-PackageSource -Name MyNuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet ;`
+    nuget.exe install c:\temp\packages.config -OutputDirectory ${Env:NUGET_PACKAGE_PATH}; `
+    $WIX_PATH ="$((Get-Childitem -Path ${Env:NUGET_PACKAGE_PATH} -Include wix.dll -File -Recurse)[0].DirectoryName)" ; `
+    $env:Path += $WIX_PATH ; `
+    [Environment]::SetEnvironmentVariable('Path', $env:Path, [EnvironmentVariableTarget]::Machine ) ;`
+    Write-Host "Updated path to = $env:Path";`
+    c:\temp\verify_installed_correctly.ps1
+
 COPY packaging/choco_package_template/speedwagon C:\ProgramData\chocolatey\templates\speedwagon
 
 COPY --from=certsgen c:/roots.sst roots.sst

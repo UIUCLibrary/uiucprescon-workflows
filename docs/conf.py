@@ -8,7 +8,7 @@
 import os
 import sys
 
-project = 'Speedwagon (UIUC Prescon Distribution)'
+project = 'Speedwagon (UIUC Prescon Edition)'
 copyright = '2024, a'
 author = 'a'
 
@@ -33,7 +33,7 @@ html_static_path = ['_static']
 
 
 latex_documents = [
-    ('index', f'Speedwagon(UIUC_Prescon_Distribution).tex',
+    ('index', f'Speedwagon(UIUC_Prescon_Edition).tex',
      f'{project} Documentation',
      "University of Illinois at Urbana Champaign",
      'manual'),

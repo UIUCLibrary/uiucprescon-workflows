@@ -6,8 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "speedwagon-uiucprescon"
 version = "0.0.1.dev0"
 dependencies = [
-    "speedwagon>=0.4.0a1"
+    "speedwagon>=0.4.0a2"
 ]
+license = { file="LICENSE"}
 description = "Collection of tools and workflows for DS"
 maintainers = [
     { name="Henry Borchers", email="hborcher@illinois.edu" }
@@ -60,3 +61,10 @@ select = ["E", "F", "W", "D", "B"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+#
+[tool.windows_standalone_packager.cpack_config_variables]
+CPACK_WIX_UPGRADE_GUID = "BD289D57-8F94-4F4D-9B6D-82A532F3514C"
+CPACK_PACKAGE_NAME = "Speedwagon (UIUC Prescon Edition)"
+CPACK_PACKAGE_INSTALL_DIRECTORY = "Speedwagon - UIUC"
+CPACK_PACKAGE_VENDOR = "University Library at The University of Illinois at Urbana Champaign: Preservation Services"
+CPACK_WIX_PRODUCT_GUID = "84BB7CAB-24DA-46EC-A855-B972384534DB"
