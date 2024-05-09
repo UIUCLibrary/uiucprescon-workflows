@@ -87,6 +87,8 @@ RUN py -3 -m pip install --no-cache-dir pipx ; `
     py -3 -m pipx ensurepath
 RUN py -3 -m pipx install 'devpi-client<7.0'
 
+ARG UV_CACHE_DIR
+ARG PIP_DOWNLOAD_CACHE
 ENV UV_INDEX_STRATEGY=unsafe-best-match
 ENV UV_CACHE_DIR=${UV_CACHE_DIR}
 ENV PIP_DOWNLOAD_CACHE=${PIP_DOWNLOAD_CACHE}
