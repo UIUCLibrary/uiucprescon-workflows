@@ -1,19 +1,34 @@
 """Workflow for making jp2 files."""
-
+from __future__ import annotations
 import os
 import abc
-from typing import List, Any, Optional, Iterable
+import typing
+from typing import List, Optional, Iterable, Mapping, TypedDict
 
 from uiucprescon import images
 
 import speedwagon
 import speedwagon.workflow
-from speedwagon import job
+from speedwagon import job, validators
+
+if typing.TYPE_CHECKING:
+    import sys
+    if sys.version_info >= (3, 11):
+        from typing import Never
+    else:
+        from typing_extensions import Never
 
 __all__ = ['MakeJp2Workflow']
 
 
-def _filter_tif_only(item: os.DirEntry) -> bool:
+ConvertFileTaskResult = typing.TypedDict(
+    "ConvertFileTaskResult", {
+        "file_created": str
+    }
+)
+
+
+def _filter_tif_only(item: os.DirEntry[str]) -> bool:
     if not item.is_file():
         return False
 
@@ -89,7 +104,29 @@ class ProfileFactory:
         return cls.profiles.keys()
 
 
-class MakeJp2Workflow(job.Workflow):
+UserArgs = TypedDict(
+    "UserArgs",
+    {
+        "Input": str,
+        "Output": str,
+        "Profile": str,
+    }
+)
+
+JobArgs = TypedDict(
+    "JobArgs",
+    {
+        "source_root": str,
+        "source_file": str,
+        "relative_location": str,
+        "destination_root": str,
+        "new_file_name": str,
+        "image_factory": str,
+    }
+)
+
+
+class MakeJp2Workflow(job.Workflow[UserArgs]):
     """Workflow for creating Jpeg 2000 files from TIFF."""
 
     name = "Make JP2"
@@ -111,8 +148,12 @@ class MakeJp2Workflow(job.Workflow):
     active = True
 
     def job_options(
-            self
-    ) -> List[speedwagon.workflow.AbsOutputOptionDataType]:
+        self
+    ) -> List[
+        speedwagon.workflow.AbsOutputOptionDataType[
+            speedwagon.workflow.UserDataType
+        ]
+    ]:
         """Get user options.
 
         User options includes:
@@ -125,16 +166,23 @@ class MakeJp2Workflow(job.Workflow):
         for profile_name in ProfileFactory.profile_names():
             profile.add_selection(profile_name)
 
-        return [
-            speedwagon.workflow.DirectorySelect("Input"),
-            speedwagon.workflow.DirectorySelect("Output"),
-            profile
-        ]
+        input_path = speedwagon.workflow.DirectorySelect("Input")
+        input_path.add_validation(validators.ExistsOnFileSystem())
+        input_path.add_validation(validators.IsDirectory())
 
-    def discover_task_metadata(self,
-                               initial_results: List[Any],
-                               additional_data,
-                               **user_args: str) -> List[dict]:
+        output_path = speedwagon.workflow.DirectorySelect("Output")
+        output_path.add_validation(validators.ExistsOnFileSystem())
+        output_path.add_validation(validators.IsDirectory())
+        return [input_path, output_path, profile]
+
+    def discover_task_metadata(
+        self,
+        initial_results: List[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[Never]
+        ],
+        additional_data: Mapping[str, Never],  # pylint: disable=W0613
+        user_args: UserArgs
+    ) -> List[JobArgs]:
         """Generate data needed to create a task.
 
         Args:
@@ -147,7 +195,7 @@ class MakeJp2Workflow(job.Workflow):
                 individual files along with their conversion profile.
 
         """
-        jobs = []
+        jobs: List[JobArgs] = []
         source_root: str = user_args["Input"]
         destination_root: str = user_args["Output"]
         profile_name: str = user_args["Profile"]
@@ -161,55 +209,23 @@ class MakeJp2Workflow(job.Workflow):
             rel_path = os.path.dirname(
                 os.path.relpath(source_file, source_root))
 
-            created_job = {
+            created_job: JobArgs = {
                 "source_root": os.path.normpath(source_root),
                 "source_file": os.path.basename(source_file),
                 "relative_location": os.path.normpath(rel_path),
                 "destination_root": os.path.normpath(destination_root),
                 "new_file_name": new_name,
                 "image_factory": profile.image_factory,
-
-
             }
             jobs.append(created_job)
 
         return jobs
 
-    @staticmethod
-    def validate_user_options(**user_args: str) -> bool:
-        """Make sure that the options the user provided is valid.
-
-        Args:
-            **user_args:
-
-        Returns:
-            Returns true on valid.
-
-        """
-        input_path = user_args["Input"]
-        destination_path = user_args["Output"]
-
-        if input_path is None:
-            raise ValueError("No input path selected")
-        if not os.path.exists(input_path):
-            raise ValueError(f"Unable to locate {input_path}.")
-
-        if not os.path.isdir(input_path):
-            raise ValueError(f"Input not a valid directory {input_path}")
-
-        if destination_path is None:
-            raise ValueError("No output path selected")
-
-        if not os.path.exists(destination_path):
-            raise ValueError(f"Unable to locate {destination_path}")
-
-        if not os.path.isdir(destination_path):
-            raise ValueError("Output is not a valid directory")
-        return True
-
-    def create_new_task(self,
-                        task_builder: "speedwagon.tasks.TaskBuilder",
-                        **job_args: str) -> None:
+    def create_new_task(
+        self,
+        task_builder: "speedwagon.tasks.TaskBuilder",
+        job_args: JobArgs
+    ) -> None:
         """Add a new task to be accomplished when the workflow is started.
 
         This creates 2 subtasks.
@@ -247,10 +263,11 @@ class MakeJp2Workflow(job.Workflow):
         task_builder.add_subtask(convert_task)
 
     @classmethod
-    def generate_report(cls,
-                        results: List[speedwagon.tasks.Result],
-                        **user_args: str
-                        ) -> Optional[str]:
+    def generate_report(
+        cls,
+        results: List[speedwagon.tasks.Result[ConvertFileTaskResult]],
+        user_args: UserArgs  # pylint: disable=unused-argument
+    ) -> Optional[str]:
         """Generate a text report for the results of the workflow.
 
         Args:
@@ -273,7 +290,7 @@ class MakeJp2Workflow(job.Workflow):
                f"\n{files_generated_list}"
 
 
-class EnsurePathTask(speedwagon.tasks.Subtask):
+class EnsurePathTask(speedwagon.tasks.Subtask[None]):
     name = "Ensure Path"
 
     def __init__(self, path: str) -> None:
@@ -290,7 +307,9 @@ class EnsurePathTask(speedwagon.tasks.Subtask):
         return True
 
 
-class ConvertFileTask(speedwagon.tasks.Subtask):
+class ConvertFileTask(
+    speedwagon.tasks.Subtask[ConvertFileTaskResult]
+):
     name = "Convert File"
 
     def __init__(self, source_file: str, destination_file: str,

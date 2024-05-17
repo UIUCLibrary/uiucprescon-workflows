@@ -4,7 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 import speedwagon
-# from speedwagon.frontend.qtwidgets import models
+from speedwagon.utils import assign_values_to_job_options, validate_user_input
 from speedwagon_uiucprescon import workflow_verify_checksums
 
 
@@ -44,44 +44,44 @@ class TestChecksumWorkflowValidArgs:
             data.label: data.value for data in workflow.job_options()
         }
 
-        # models = pytest.importorskip("speedwagon.frontend.qtwidgets.models")
-        # return models.ToolOptionsModel4(
-        #     workflow.get_user_options()
-        # ).get()
-
-    @pytest.mark.parametrize("invalid_input_value", [None, ""])
-    def test_empty_input_fails(
-            self, invalid_input_value, workflow, default_options):
-
-        options = default_options.copy()
-        options['Input'] = invalid_input_value
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**options)
 
     def test_input_not_existing_fails(
             self, workflow, default_options, monkeypatch):
 
-        options = default_options.copy()
-        options['Input'] = "some/invalid/path"
-        import os
-        with monkeypatch.context() as mp:
-            mp.setattr(os.path, "exists", lambda path: False)
-            with pytest.raises(ValueError):
-                workflow.validate_user_options(**options)
+        user_args = default_options.copy()
+        user_args['Input'] = "some/invalid/path"
+        findings = validate_user_input(
+            {
+                value.setting_name or value.label: value
+                for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_args
+                )
+            }
+        )
+        assert findings['Input'] == ['some/invalid/path does not exist']
 
     def test_input_not_a_dir_fails(
             self, workflow, default_options, monkeypatch
     ):
 
-        options = default_options.copy()
-        options['Input'] = "some/valid/path/dummy.txt"
-        import os
-        input_arg = options['Input']
+        user_args = default_options.copy()
+        user_args['Input'] = "some/valid/path/dummy.txt"
         with monkeypatch.context() as mp:
-            mp.setattr(os.path, "exists", lambda path: path == input_arg)
+            mp.setattr(os.path, "exists", lambda path: path == user_args['Input'])
             mp.setattr(os.path, "isdir", lambda path: False)
-            with pytest.raises(ValueError):
-                workflow.validate_user_options(**options)
+            findings = validate_user_input(
+                {
+                    value.setting_name or value.label: value
+                    for value in assign_values_to_job_options(
+                        workflow.job_options(),
+                        **user_args
+                    )
+                }
+            )
+        assert findings["Input"] == [
+            'some/valid/path/dummy.txt is not a directory'
+        ]
 
     def test_valid(
             self, workflow, default_options, monkeypatch
@@ -139,7 +139,7 @@ class TestChecksumWorkflowTaskGenerators:
         )
         workflow.initial_task(
             task_builder=task_builder,
-            **user_args
+            user_args=user_args
         )
         assert task_builder.add_subtask.called is True
 
@@ -164,7 +164,7 @@ class TestChecksumWorkflowTaskGenerators:
         )
         workflow.create_new_task(
             task_builder=task_builder,
-            **job_args
+            job_args=job_args
         )
         assert task_builder.add_subtask.called is True
 
@@ -213,40 +213,39 @@ class TestChecksumWorkflow:
         job_metadata = workflow.discover_task_metadata(
             initial_results=initial_results,
             additional_data=additional_data,
-            **user_args
+            user_args=user_args
         )
         assert len(job_metadata) == 1
 
     def test_generator_report_failure(self, workflow, default_options):
-        result_enums = workflow_verify_checksums.ResultValues
+        # result_enums = workflow_verify_checksums.ResultValues
         results = [
             speedwagon.tasks.Result(
                 workflow_verify_checksums.ValidateChecksumTask,
                 {
-                    result_enums.VALID: False,
-                    result_enums.CHECKSUM_REPORT_FILE: "SomeFile.md5",
-                    result_enums.FILENAME: "somefile.txt"
+                    "valid": False,
+                    "checksum_report_file": "SomeFile.md5",
+                    "filename": "somefile.txt"
                 }
             )
         ]
-        report = workflow.generate_report(results=results)
+        report = workflow.generate_report(results=results, user_args=default_options)
         assert isinstance(report, str)
         assert "failed checksum validation" in report
 
     def test_generator_report_success(self, workflow, default_options):
-        result_enums = workflow_verify_checksums.ResultValues
         results = [
             speedwagon.tasks.Result(
                 workflow_verify_checksums.ValidateChecksumTask,
                 {
-                    result_enums.VALID: True,
-                    result_enums.CHECKSUM_REPORT_FILE: "SomeFile.md5",
-                    result_enums.FILENAME: "somefile.txt"
+                    "valid": True,
+                    "checksum_report_file": "SomeFile.md5",
+                    "filename": "somefile.txt"
 
                 }
             )
         ]
-        report = workflow.generate_report(results=results)
+        report = workflow.generate_report(results=results, user_args=default_options)
         assert isinstance(report, str)
         assert "passed checksum validation" in report
 
@@ -321,13 +320,12 @@ class TestValidateChecksumTask:
             source_report=source_report
         )
         import hathi_validate
-        result_enums = workflow_verify_checksums.ResultValues
 
         calculate_md5 = Mock(return_value=actual_hash)
         with monkeypatch.context() as mp:
             mp.setattr(hathi_validate.process, "calculate_md5", calculate_md5)
             assert task.work() is True
-            assert task.results[result_enums.VALID] is should_be_valid
+            assert task.results["valid"] is should_be_valid
 
 
 class TestVerifyChecksumBatchSingleWorkflow:
@@ -349,8 +347,7 @@ class TestVerifyChecksumBatchSingleWorkflow:
                                     monkeypatch):
 
         user_args = default_options.copy()
-        UserArgs = workflow_verify_checksums.UserArgs
-        user_args[UserArgs.INPUT.value] = os.path.join("some", "path")
+        user_args["Input"] = os.path.join("some", "path")
 
         monkeypatch.setattr(
             workflow_verify_checksums.hathi_validate.process,
@@ -365,21 +362,18 @@ class TestVerifyChecksumBatchSingleWorkflow:
         tasks_generated = workflow.discover_task_metadata(
             initial_results=initial_results,
             additional_data=additional_data,
-            **user_args
+            user_args=user_args
         )
-
-        JobValues = workflow_verify_checksums.JobValues
 
         assert len(tasks_generated) == 1
         task = tasks_generated[0]
-        assert task[JobValues.EXPECTED_HASH.value] == \
+        assert task["expected_hash"] == \
                "42312efb063c44844cd96e47a19e3441" and \
-               task[JobValues.ITEM_FILENAME.value] == "file.txt"
+               task["filename"] == "file.txt"
 
     def test_create_new_task(self, workflow, monkeypatch):
-        JobValues = workflow_verify_checksums.JobValues
         job_args = {
-            JobValues.EXPECTED_HASH.value: "42312efb063c44844cd96e47a19e3441"
+            "expected_hash": "42312efb063c44844cd96e47a19e3441"
         }
         task_builder = Mock()
         ChecksumTask = Mock()
@@ -387,55 +381,59 @@ class TestVerifyChecksumBatchSingleWorkflow:
         monkeypatch.setattr(workflow_verify_checksums, "ChecksumTask",
                             ChecksumTask)
         #
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
         assert task_builder.add_subtask.called is True
         assert ChecksumTask.called is True
 
     def test_generate_report_success(self, workflow, default_options):
         user_args = default_options.copy()
-        ResultValues = workflow_verify_checksums.ResultValues
+        # ResultValues = workflow_verify_checksums.ResultValues
         results = [
             speedwagon.tasks.Result(workflow_verify_checksums.ChecksumTask, {
-                ResultValues.CHECKSUM_REPORT_FILE: "checksum.md5",
-                ResultValues.FILENAME: "file1.jp2",
-                ResultValues.VALID: True,
+                "checksum_report_file": "checksum.md5",
+                # ResultValues.CHECKSUM_REPORT_FILE: "checksum.md5",
+                "filename": "file1.jp2",
+                # ResultValues.FILENAME: "file1.jp2",
+                "valid": True,
+                # ResultValues.VALID: True,
             }),
             speedwagon.tasks.Result(workflow_verify_checksums.ChecksumTask, {
-                ResultValues.CHECKSUM_REPORT_FILE: "checksum.md5",
-                ResultValues.FILENAME: "file2.jp2",
-                ResultValues.VALID: True,
+                'checksum_report_file': "checksum.md5",
+                # ResultValues.CHECKSUM_REPORT_FILE: "checksum.md5",
+                "filename": "file2.jp2",
+                # ResultValues.FILENAME: "file2.jp2",
+                "valid": True,
+                # ResultValues.VALID: True,
             }),
         ]
-        report = workflow.generate_report(results=results, **user_args)
+        report = workflow.generate_report(results=results, user_args=user_args)
         assert "All 2 passed checksum validation." in report
 
     def test_generate_report_failure(self, workflow, default_options):
         user_args = default_options.copy()
-        ResultValues = workflow_verify_checksums.ResultValues
         results = [
             speedwagon.tasks.Result(workflow_verify_checksums.ChecksumTask, {
-                ResultValues.CHECKSUM_REPORT_FILE: "checksum.md5",
-                ResultValues.FILENAME: "file1.jp2",
-                ResultValues.VALID: False,
+                "checksum_report_file": "checksum.md5",
+                "filename": "file1.jp2",
+                "valid": False,
             }),
             speedwagon.tasks.Result(workflow_verify_checksums.ChecksumTask, {
-                ResultValues.CHECKSUM_REPORT_FILE: "checksum.md5",
-                ResultValues.FILENAME: "file2.jp2",
-                ResultValues.VALID: False,
+                "checksum_report_file": "checksum.md5",
+                "filename": "file2.jp2",
+                "valid": False,
             }),
         ]
-        report = workflow.generate_report(results=results, **user_args)
+        report = workflow.generate_report(results=results, user_args=user_args)
         assert "2 files failed checksum validation." in report
 
 
 class TestChecksumTask:
     def test_work_matching(self, monkeypatch):
-        JobValues = workflow_verify_checksums.JobValues
         job_args = {
-            JobValues.ITEM_FILENAME.value: "file.txt",
-            JobValues.SOURCE_REPORT.value: "checksum.md5",
-            JobValues.EXPECTED_HASH.value: "42312efb063c44844cd96e47a19e3441",
-            JobValues.ROOT_PATH.value: os.path.join("some", "path"),
+            "filename": "file.txt",
+            "source_report": "checksum.md5",
+            "expected_hash": "42312efb063c44844cd96e47a19e3441",
+            "path": os.path.join("some", "path"),
         }
 
         calculate_md5 = Mock(return_value='42312efb063c44844cd96e47a19e3441')
@@ -447,18 +445,16 @@ class TestChecksumTask:
 
         task = workflow_verify_checksums.ChecksumTask(**job_args)
 
-        ResultValues = workflow_verify_checksums.ResultValues
         assert task.work() is True
-        assert task.results[ResultValues.FILENAME] == "file.txt" and \
-               task.results[ResultValues.VALID] is True
+        assert task.results["filename"] == "file.txt" and \
+               task.results["valid"] is True
 
     def test_work_non_matching(self, monkeypatch):
-        JobValues = workflow_verify_checksums.JobValues
-        job_args = {
-            JobValues.ITEM_FILENAME.value: "file.txt",
-            JobValues.SOURCE_REPORT.value: "checksum.md5",
-            JobValues.EXPECTED_HASH.value: "42312efb063c44844cd96e47a19e3441",
-            JobValues.ROOT_PATH.value: os.path.join("some", "path"),
+        job_args: workflow_verify_checksums.ReadChecksumTaskReport = {
+            "filename": "file.txt",
+            "source_report": "checksum.md5",
+            "expected_hash": "42312efb063c44844cd96e47a19e3441",
+            "path": os.path.join("some", "path"),
         }
 
         calculate_md5 = Mock(return_value='something_else')
@@ -470,10 +466,9 @@ class TestChecksumTask:
 
         task = workflow_verify_checksums.ChecksumTask(**job_args)
 
-        ResultValues = workflow_verify_checksums.ResultValues
         assert task.work() is True
-        assert task.results[ResultValues.FILENAME] == "file.txt" and \
-               task.results[ResultValues.VALID] is False
+        assert task.results['filename'] == "file.txt" and \
+               task.results['valid'] is False
 
 
 @pytest.mark.parametrize(
@@ -481,14 +476,10 @@ class TestChecksumTask:
     [
         workflow_verify_checksums.ChecksumTask(
             **{
-                workflow_verify_checksums.JobValues.ITEM_FILENAME.value:
-                    "file.txt",
-                workflow_verify_checksums.JobValues.SOURCE_REPORT.value:
-                    "checksum.md5",
-                workflow_verify_checksums.JobValues.EXPECTED_HASH.value:
-                    "42312efb063c44844cd96e47a19e3441",
-                workflow_verify_checksums.JobValues.ROOT_PATH.value:
-                    os.path.join("some", "path"),
+                "filename": "file.txt",
+                "source_report": "checksum.md5",
+                "expected_hash": "42312efb063c44844cd96e47a19e3441",
+                "path": os.path.join("some", "path"),
             }
         ),
         workflow_verify_checksums.ValidateChecksumTask(

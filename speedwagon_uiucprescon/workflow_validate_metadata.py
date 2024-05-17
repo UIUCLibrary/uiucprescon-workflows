@@ -1,31 +1,42 @@
 """Validating technical metadata."""
+from __future__ import annotations
 
 import os
-import typing
-from typing import Optional, List, Any
-import enum
+from typing import Optional, List, TypedDict, Mapping, TYPE_CHECKING
+
 
 from uiucprescon import imagevalidate
 
 import speedwagon
 import speedwagon.workflow
 from speedwagon.job import Workflow
-from speedwagon_uiucprescon import tasks
+from speedwagon_uiucprescon import tasks, conditions
+
+if TYPE_CHECKING:
+    import sys
+    if sys.version_info >= (3, 11):
+        from typing import Never
+    else:
+        from typing_extensions import Never
 
 __all__ = ['ValidateMetadataWorkflow']
 
 
-class UserArgs(enum.Enum):
-    INPUT = "Input"
+JobValues = TypedDict("JobValues", {
+    "filename": str,
+    "profile_name": str,
+})
+
+UserArgs = TypedDict(
+    "UserArgs",
+    {
+        "Profile": str,
+        "Input": str,
+    }
+)
 
 
-class JobValues(enum.Enum):
-    ITEM_FILENAME = "filename"
-    ROOT_PATH = "path"
-    PROFILE_NAME = "profile_name"
-
-
-class ValidateMetadataWorkflow(Workflow):
+class ValidateMetadataWorkflow(Workflow[UserArgs]):
     """Workflow for validating embedded image file metadata."""
 
     name = "Validate Metadata"
@@ -39,41 +50,59 @@ class ValidateMetadataWorkflow(Workflow):
                   "Input is path that contains subdirectory which " \
                   "containing a series of jp2 files."
 
-    def discover_task_metadata(self, initial_results: List[Any],
-                               additional_data,
-                               **user_args) -> List[dict]:
+    def discover_task_metadata(
+        self,
+        initial_results: List[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[str]
+        ],
+        additional_data: Mapping[  # pylint: disable=unused-argument
+            str,
+            Never
+        ],
+        user_args: UserArgs,
+    ) -> List[JobValues]:
         """Create task metadata based on the files located."""
-        new_tasks = []
+        new_tasks: List[JobValues] = []
 
         for image_file in initial_results[0].data:
             new_tasks.append({
-                JobValues.ITEM_FILENAME.value: image_file,
-                JobValues.PROFILE_NAME.value: user_args["Profile"]
+                "filename": image_file,
+                "profile_name": user_args["Profile"]
             })
         return new_tasks
 
     def initial_task(
-            self,
-            task_builder: "speedwagon.tasks.TaskBuilder",
-            **user_args
+        self,
+        task_builder: "speedwagon.tasks.TaskBuilder",
+        user_args: UserArgs
     ) -> None:
         """Create task that locates files based on profile selected by user."""
         task_builder.add_subtask(
             LocateImagesTask(
-                user_args[UserArgs.INPUT.value],
+                user_args["Input"],
                 user_args["Profile"]
             )
         )
 
     def job_options(
-            self
-    ) -> List[speedwagon.workflow.AbsOutputOptionDataType]:
+        self
+    ) -> List[
+        speedwagon.workflow.AbsOutputOptionDataType[
+            speedwagon.workflow.UserDataType
+        ]
+    ]:
         """Request user options.
 
         This includes an input folder and a validation profile.
         """
         input_option = \
-            speedwagon.workflow.DirectorySelect(UserArgs.INPUT.value)
+            speedwagon.workflow.DirectorySelect("Input")
+        input_option.add_validation(speedwagon.validators.ExistsOnFileSystem())
+
+        input_option.add_validation(
+            speedwagon.validators.IsDirectory(),
+            condition=conditions.candidate_exists
+        )
 
         profile_type = speedwagon.workflow.ChoiceSelection("Profile")
         profile_type.placeholder_text = "Select a Profile"
@@ -86,56 +115,52 @@ class ValidateMetadataWorkflow(Workflow):
             profile_type
         ]
 
-    @staticmethod
-    def validate_user_options(**user_args: str) -> bool:
-        """Validate input and other user args."""
-        input_data = user_args[UserArgs.INPUT.value]
-        if input_data is None:
-            raise ValueError("Missing value in input")
-
-        if not os.path.exists(input_data) or not os.path.isdir(input_data):
-            raise ValueError("Invalid user arguments")
-        return True
-
-    def create_new_task(self,
-                        task_builder: "speedwagon.tasks.TaskBuilder",
-                        **job_args: str):
+    def create_new_task(
+        self,
+        task_builder: "speedwagon.tasks.TaskBuilder",
+        job_args: JobValues
+    ) -> None:
         """Create validation tasks."""
-        filename = job_args[JobValues.ITEM_FILENAME.value]
+        filename = job_args["filename"]
 
         subtask = \
             tasks.ValidateImageMetadataTask(
                 filename,
-                job_args[JobValues.PROFILE_NAME.value]
+                job_args["profile_name"]
             )
 
         task_builder.add_subtask(subtask)
 
     @classmethod
-    def generate_report(cls,
-                        results: List[speedwagon.tasks.Result],
-                        **user_args) -> Optional[str]:
+    def generate_report(
+        cls,
+        results: List[
+            speedwagon.tasks.Result[
+                tasks.validation.ValidateImageMetadataResult
+            ]
+        ],
+        user_args: UserArgs
+    ) -> Optional[str]:
         """Generate validation report as a string."""
-        result_keys = \
-            tasks.ValidateImageMetadataTask.ResultValues
 
         def validation_result_filter(
-                task_result: speedwagon.tasks.Result
+            task_result: speedwagon.tasks.Result[
+                tasks.validation.ValidateImageMetadataResult
+            ]
         ) -> bool:
-            if task_result.source != \
-                    tasks.ValidateImageMetadataTask:
-                return False
-            return True
+            return task_result.source == tasks.ValidateImageMetadataTask
 
-        def filter_only_invalid(task_result) -> bool:
-            if task_result[result_keys.VALID]:
-                return False
-            return True
+        def filter_only_invalid(
+            task_result: tasks.validation.ValidateImageMetadataResult
+        ) -> bool:
+            return not task_result["valid"]
 
-        def invalid_messages(task_result) -> str:
-            source = task_result[result_keys.FILENAME]
+        def invalid_messages(
+            task_result: tasks.validation.ValidateImageMetadataResult
+        ) -> str:
+            source = task_result["filename"]
 
-            messages = task_result[result_keys.REPORT]
+            messages = task_result["report"]
 
             message = "\n".join([
                 f"{source}",
@@ -155,7 +180,7 @@ class ValidateMetadataWorkflow(Workflow):
         report_data = "\n\n".join(data_points)
 
         summary = "\n".join([
-            f"Validated files located in: {user_args[UserArgs.INPUT.value]}",
+            f"Validated files located in: {user_args['Input']}",
             f"Total files checked: {total_results}",
 
         ])
@@ -171,7 +196,7 @@ class ValidateMetadataWorkflow(Workflow):
         return report
 
 
-class LocateImagesTask(speedwagon.tasks.Subtask):
+class LocateImagesTask(speedwagon.tasks.Subtask[List[str]]):
     name = "Locate Image Files"
 
     def __init__(self,
@@ -180,10 +205,7 @@ class LocateImagesTask(speedwagon.tasks.Subtask):
         super().__init__()
         self._root = root
 
-        self._profile = typing.cast(
-            imagevalidate.profiles.AbsProfile,
-            imagevalidate.get_profile(profile_name)
-        )
+        self._profile = imagevalidate.get_profile(profile_name)
 
     def task_description(self) -> Optional[str]:
         return f"Locating images in {self._root}"

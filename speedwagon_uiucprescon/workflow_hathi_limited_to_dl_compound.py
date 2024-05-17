@@ -1,20 +1,54 @@
 """Workflow to convert hathi limited packages to digital library format."""
+from __future__ import annotations
 
 import logging
-import os
-from typing import List, Any, Optional
+import typing
+from typing import List, Optional, Mapping
 
 from uiucprescon import packager
+import uiucprescon.packager.packages.collection
 
 import speedwagon
 import speedwagon.workflow
 from speedwagon.job import Workflow
 from speedwagon import reports, utils
+from speedwagon import validators
+
+if typing.TYPE_CHECKING:
+    import sys
+    if sys.version_info >= (3, 11):
+        from typing import Never
+    else:
+        from typing_extensions import Never
 
 __all__ = ['HathiLimitedToDLWorkflow']
 
+PackageConverterReport = typing.TypedDict(
+    "PackageConverterReport",
+    {
+        "destination": str
+    }
+)
 
-class HathiLimitedToDLWorkflow(Workflow):
+
+UserOptions = typing.TypedDict(
+    "UserOptions",
+    {
+        "Input": str,
+        "Output": str,
+    }
+)
+
+JobArgs = typing.TypedDict(
+    "JobArgs",
+    {
+        "package": uiucprescon.packager.packages.collection.Package,
+        "destination": str
+    }
+)
+
+
+class HathiLimitedToDLWorkflow(Workflow[UserOptions]):
     """Converts Hathi Limited View file packages to Digital Library format."""
 
     name = "Convert HathiTrust limited view to Digital library"
@@ -24,10 +58,16 @@ class HathiLimitedToDLWorkflow(Workflow):
     active = True
 
     def discover_task_metadata(
-            self,
-            initial_results: List[Any],
-            additional_data, **user_args: str
-    ) -> List[dict]:
+        self,
+        initial_results: List[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[Never]
+        ],
+        additional_data: Mapping[  # pylint: disable=unused-argument
+            str,
+            Never
+        ],
+        user_args: UserOptions
+    ) -> List[JobArgs]:
         """Find file packages."""
         hathi_limited_view_packager = packager.PackageFactory(
             packager.packages.HathiLimitedView())
@@ -39,10 +79,10 @@ class HathiLimitedToDLWorkflow(Workflow):
             user_args['Input'])]
 
     def create_new_task(
-            self,
-            task_builder: "speedwagon.tasks.TaskBuilder",
-            **job_args
-    ):
+        self,
+        task_builder: "speedwagon.tasks.TaskBuilder",
+        job_args: JobArgs
+    ) -> None:
         """Create a task for converting a package."""
         task_builder.add_subtask(
             PackageConverter(src=job_args['package'],
@@ -50,18 +90,46 @@ class HathiLimitedToDLWorkflow(Workflow):
         )
 
     def job_options(
-            self
-    ) -> List[speedwagon.workflow.AbsOutputOptionDataType]:
-        """Get user options for input and output directories."""
-        return [
-            speedwagon.workflow.DirectorySelect("Input"),
-            speedwagon.workflow.DirectorySelect("Output"),
+        self
+    ) -> List[
+        speedwagon.workflow.AbsOutputOptionDataType[
+            speedwagon.workflow.UserDataType
         ]
+    ]:
+        """Get user options for input and output directories."""
+        input_value = speedwagon.workflow.DirectorySelect("Input")
+
+        input_value.add_validation(validators.ExistsOnFileSystem(
+            message_template="Input does not exist"
+        ))
+
+        output_value = speedwagon.workflow.DirectorySelect("Output")
+        output_value.add_validation(
+            validators.CustomValidation[str](
+                query=(
+                    lambda candidate, job_args: candidate != job_args['Input']
+                ),
+                failure_message_function=(
+                    lambda _: "Input cannot be the same as Output"
+                )
+
+            )
+        )
+        output_value.add_validation(
+            validators.ExistsOnFileSystem(
+                message_template="Output does not exist"
+            )
+        )
+
+        return [input_value, output_value]
 
     @classmethod
     @reports.add_report_borders
-    def generate_report(cls, results: List[speedwagon.tasks.Result],
-                        **user_args) -> Optional[str]:
+    def generate_report(
+        cls,
+        results: List[speedwagon.tasks.Result[PackageConverterReport]],
+        user_args: UserOptions
+    ) -> Optional[str]:
         """Generate a report of packages converted."""
         total = len(results)
 
@@ -69,31 +137,13 @@ class HathiLimitedToDLWorkflow(Workflow):
  Results located at {user_args['Output']}
 """
 
-    @staticmethod
-    def validate_user_options(**user_args: str) -> bool:
-        """Validate user input and output args."""
-        required = ['Input', "Output"]
-        for arg in required:
-            if user_args[arg] is None or str(user_args[arg]).strip() == "":
-                raise ValueError(f"Missing required value for {arg}")
 
-        if user_args['Output'] == user_args['Input']:
-            raise ValueError("Input cannot be the same as Output")
-
-        if not os.path.exists(user_args['Input']):
-            raise ValueError("Input does not exist")
-
-        if not os.path.exists(user_args['Output']):
-            raise ValueError("Output does not exist")
-        return True
-
-
-class PackageConverter(speedwagon.tasks.Subtask):
+class PackageConverter(speedwagon.tasks.Subtask[PackageConverterReport]):
     name = "Convert Package"
 
     def __init__(
             self,
-            src: packager.package.collection.Package,
+            src: uiucprescon.packager.packages.collection.Package,
             dst: str
     ) -> None:
         super().__init__()

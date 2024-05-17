@@ -1,6 +1,9 @@
 from unittest.mock import Mock
 import speedwagon
+from speedwagon.utils import assign_values_to_job_options, validate_user_input
 import pytest
+import os.path
+import os
 
 
 from speedwagon_uiucprescon import \
@@ -8,12 +11,9 @@ from speedwagon_uiucprescon import \
     capture_one_workflow
 
 
-
-
 def test_package_image_task_success(monkeypatch):
     mock_processfile = Mock()
     with monkeypatch.context() as mp:
-        import os
         mp.setattr(capture_one_workflow, "ProcessFile", mock_processfile)
         mp.setattr(os, "makedirs", lambda *x: None)
         task = capture_one_workflow.PackageImageConverterTask(
@@ -25,66 +25,87 @@ def test_package_image_task_success(monkeypatch):
 
 
 def test_validate_user_options_valid(monkeypatch):
+    workflow = capture_one_workflow.ConvertTiffPreservationToDLJp2Workflow()
+    import os.path
+    monkeypatch.setattr(os.path, "exists", lambda x: True)
+    monkeypatch.setattr(os.path, "isdir", lambda x: True)
     user_args = {
         "Input": "./some/path/preservation"
     }
-    import os.path
-    monkeypatch.setattr(os.path, "exists", lambda x: True)
-    monkeypatch.setattr(os.path, "isdir", lambda x: True)
-    validator = \
-        capture_one_workflow.ConvertTiffPreservationToDLJp2Workflow.validate_user_options
-    assert validator(**user_args) is True
-
-
-def test_validate_user_options_missing_input(monkeypatch):
-    user_args = {
-        "Input": None
-    }
-    with pytest.raises(ValueError):
-        validator = \
-            capture_one_workflow.ConvertTiffPreservationToDLJp2Workflow.validate_user_options
-        validator(**user_args)
-
+    findings = validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert len(findings) == 0
 
 def test_validate_user_options_input_not_exists(monkeypatch):
+    workflow = capture_one_workflow.ConvertTiffPreservationToDLJp2Workflow()
+    path_exists = Mock(return_value=False)
+    monkeypatch.setattr(
+        speedwagon.validators.ExistsOnFileSystem,
+        "path_exists",
+        path_exists
+    )
     user_args = {
         "Input": "./some/path/that/does/not/exists/preservation"
     }
-    import os.path
-    monkeypatch.setattr(os.path, "exists", lambda x: False)
-
-    with pytest.raises(ValueError):
-        validator = \
-            capture_one_workflow.ConvertTiffPreservationToDLJp2Workflow.validate_user_options
-        validator(**user_args)
+    findings = validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    path_exists.assert_called_with(
+        "./some/path/that/does/not/exists/preservation"
+    )
+    assert len(findings['Input']) > 0
 
 
 def test_validate_user_options_input_is_file(monkeypatch):
+    workflow = capture_one_workflow.ConvertTiffPreservationToDLJp2Workflow()
+    monkeypatch.setattr(os.path, "exists", lambda x: True)
+    monkeypatch.setattr(os.path, "isdir", lambda x: False)
     user_args = {
         "Input": "./some/path/a_file.tif"
     }
-    import os.path
-    monkeypatch.setattr(os.path, "exists", lambda x: True)
-    monkeypatch.setattr(os.path, "isdir", lambda x: False)
-
-    with pytest.raises(ValueError):
-        validator = \
-            capture_one_workflow.ConvertTiffPreservationToDLJp2Workflow.validate_user_options
-        validator(**user_args)
+    findings = validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert findings["Input"] == ['./some/path/a_file.tif is not a directory']
 
 
 def test_validate_user_options_input_not_pres(monkeypatch):
-    user_args = {
-        "Input": "./some/path/that/does/not/exists"
-    }
-    import os.path
+    workflow = capture_one_workflow.ConvertTiffPreservationToDLJp2Workflow()
     monkeypatch.setattr(os.path, "exists", lambda x: True)
     monkeypatch.setattr(os.path, "isdir", lambda x: True)
 
-    with pytest.raises(ValueError):
-        validator = \
-            capture_one_workflow.ConvertTiffPreservationToDLJp2Workflow.validate_user_options
-        validator(**user_args)
+    user_args = {
+        "Input": "./some/path/that/does/not/exists"
+    }
+    findings = validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert findings['Input'] == ['Invalid value in input: Not a preservation directory']
 
 
 def test_package_image_task_failure(monkeypatch):
@@ -175,7 +196,7 @@ class TestConvertTiffPreservationToDLJp2Workflow:
             workflow.discover_task_metadata(
                 initial_results=initial_results,
                 additional_data=additional_data,
-                **user_args
+                user_args=user_args
             )
         assert len(task_metadata) == 1 and \
                task_metadata[0]['source_file'] == \
@@ -196,7 +217,7 @@ class TestConvertTiffPreservationToDLJp2Workflow:
             PackageImageConverterTask
         )
 
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
 
         assert task_builder.add_subtask.called is True
         PackageImageConverterTask.assert_called_with(
@@ -215,7 +236,7 @@ class TestConvertTiffPreservationToDLJp2Workflow:
                 }
             )
         ]
-        report = workflow.generate_report(results, **user_args)
+        report = workflow.generate_report(results, user_args)
         assert isinstance(report, str)
         assert "Success" in report
 
@@ -231,7 +252,7 @@ class TestConvertTiffPreservationToDLJp2Workflow:
                 }
             )
         ]
-        report = workflow.generate_report(results, **user_args)
+        report = workflow.generate_report(results, user_args)
         assert isinstance(report, str)
         assert "Failed" in report
 

@@ -62,12 +62,14 @@ from .workflow_make_checksum import (
     RegenerateChecksumBatchMultipleWorkflow,
 )
 
+from .workflow_validate_metadata import ValidateMetadataWorkflow
 
-active_workflows: typing.List[typing.Type[speedwagon.Workflow]] = [
-    GenerateMarcXMLFilesWorkflow,
+active_workflows: typing.List[typing.Type[speedwagon.Workflow[typing.Any]]] = [
     CaptureOneToDlCompoundAndDLWorkflow,
+    ChecksumWorkflow,
     CompletenessWorkflow,
     ConvertTiffPreservationToDLJp2Workflow,
+    GenerateMarcXMLFilesWorkflow,
     HathiLimitedToDLWorkflow,
     HathiPrepWorkflow,
     MakeChecksumBatchSingleWorkflow,
@@ -76,12 +78,14 @@ active_workflows: typing.List[typing.Type[speedwagon.Workflow]] = [
     MedusaPreingestCuration,
     OCRWorkflow,
     ValidateImageMetadataWorkflow,
-    ChecksumWorkflow,
+    ValidateMetadataWorkflow,
     VerifyChecksumBatchSingleWorkflow,
     ZipPackagesWorkflow,
 ]
 
-deprecated_workflows: typing.List[typing.Type[speedwagon.Workflow]] = [
+deprecated_workflows: typing.List[
+    typing.Type[speedwagon.Workflow[typing.Any]]
+] = [
     CaptureOneToDlCompoundWorkflow,
     CaptureOneToHathiTiffPackageWorkflow,
     ConvertTiffToHathiJp2Workflow,

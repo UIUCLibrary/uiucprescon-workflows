@@ -54,7 +54,7 @@ class TestCaptureOneToHathiTiffPackageWorkflow:
             workflow.discover_task_metadata(
                 initial_results=initial_results,
                 additional_data=additional_data,
-                **user_args
+                user_args=user_args
             )
 
         assert len(task_metadata) == 1 and \
@@ -77,7 +77,7 @@ class TestCaptureOneToHathiTiffPackageWorkflow:
             PackageConverter
         )
 
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
 
         assert task_builder.add_subtask.called is True
         assert PackageConverter.called is True

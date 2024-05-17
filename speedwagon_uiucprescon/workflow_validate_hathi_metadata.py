@@ -1,18 +1,41 @@
 """Workflow for validating image metadata."""
+from __future__ import annotations
+from typing import List, Optional, TYPE_CHECKING, Mapping, TypedDict
 
-import os
-from typing import List, Any, Optional
 from uiucprescon import imagevalidate
 
 import speedwagon
+from speedwagon import validators
 from speedwagon.job import Workflow
+from speedwagon import workflow
+
+from speedwagon_uiucprescon import conditions
+
+if TYPE_CHECKING:
+    import sys
+    if sys.version_info >= (3, 11):
+        from typing import Never
+    else:
+        from typing_extensions import Never
 
 __all__ = ['ValidateImageMetadataWorkflow']
 
-from speedwagon import workflow
+UserArgs = TypedDict(
+    "UserArgs",
+    {
+        "Input": str
+    }
+)
+
+JobArgs = TypedDict(
+    "JobArgs",
+    {
+        "source_file": str
+    }
+)
 
 
-class ValidateImageMetadataWorkflow(Workflow):
+class ValidateImageMetadataWorkflow(Workflow[UserArgs]):
     """Validate tiff embedded metadata for HathiTrust."""
 
     name = "Validate Tiff Image Metadata for HathiTrust"
@@ -28,51 +51,44 @@ class ValidateImageMetadataWorkflow(Workflow):
 
     active = True
 
-    def discover_task_metadata(self,
-                               initial_results: List[Any],
-                               additional_data,
-                               **user_args: str) -> List[dict]:
+    def discover_task_metadata(
+        self,
+        initial_results: List[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[Never]
+        ],
+        additional_data: Mapping[str, Never],  # pylint: disable=W0613
+        user_args: UserArgs,
+    ) -> List[JobArgs]:
         """Generate task metadata."""
-        jobs = []
-        source_input = user_args["Input"]
-        jobs.append({
-            "source_file": source_input
-        })
-        return jobs
+        return [{"source_file": user_args["Input"]}]
 
-    def job_options(self) -> List[workflow.AbsOutputOptionDataType]:
+    def job_options(self) -> List[
+        workflow.AbsOutputOptionDataType[workflow.UserDataType]
+    ]:
         """Request input setting from user."""
-        return [
-            workflow.DirectorySelect("Input")
-        ]
+        input_path = workflow.FileSelectData("Input", required=True)
+        input_path.add_validation(
+            validators.ExistsOnFileSystem(),
+        )
+        input_path.add_validation(
+            validators.IsFile(),
+            condition=conditions.candidate_exists
+        )
+
+        return [input_path]
 
     def create_new_task(
-            self,
-            task_builder: "speedwagon.tasks.TaskBuilder",
-            **job_args: str
+        self,
+        task_builder: "speedwagon.tasks.TaskBuilder",
+        job_args: JobArgs
     ) -> None:
         """Create a validation task."""
         source_file = job_args["source_file"]
         new_task = MetadataValidatorTask(source_file)
         task_builder.add_subtask(new_task)
 
-    @staticmethod
-    def validate_user_options(**user_args: str) -> bool:
-        """Validate input settings from user."""
-        file_path = user_args["Input"]
 
-        if not file_path:
-            raise ValueError("No image selected")
-
-        if not os.path.exists(file_path):
-            raise ValueError(f"Unable to locate {file_path}")
-
-        if not os.path.isfile(file_path):
-            raise ValueError("Invalid input selection")
-        return True
-
-
-class MetadataValidatorTask(speedwagon.tasks.Subtask):
+class MetadataValidatorTask(speedwagon.tasks.Subtask[imagevalidate.Report]):
     name = "Metadata Validation"
 
     def __init__(self, source_file: str) -> None:

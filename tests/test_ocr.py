@@ -1,10 +1,12 @@
-import logging
+import itertools
 from unittest.mock import MagicMock, Mock, ANY, mock_open, patch
 
 import pytest
 import os.path
 
 import speedwagon
+from speedwagon.utils import assign_values_to_job_options, validate_user_input
+
 from speedwagon_uiucprescon import workflow_ocr
 from speedwagon.exceptions import MissingConfiguration, SpeedwagonException
 from uiucprescon.ocr import reader, tesseractwrap
@@ -19,7 +21,7 @@ def test_discover_task_metadata_raises_with_no_tessdata(monkeypatch):
     monkeypatch.setattr(os.path, "exists", lambda args: False)
     with pytest.raises(SpeedwagonException):
         user_options = {"tessdata": None}
-        workflow.discover_task_metadata([], None, **user_options)
+        workflow.discover_task_metadata([], None, user_options)
 
 
 def test_discover_task_metadata(monkeypatch, tmpdir):
@@ -46,7 +48,7 @@ def test_discover_task_metadata(monkeypatch, tmpdir):
     with monkeypatch.context() as ctx:
         ctx.setattr(os.path, "exists", lambda path: path == "/some/file/path")
         new_tasks = workflow.discover_task_metadata(
-            initial_results, None, **user_options
+            initial_results, None, user_options
         )
 
     assert len(new_tasks) == 1
@@ -131,18 +133,6 @@ class TestOCRWorkflow:
         )
         assert workflow.validate_user_options(**user_options) is True
 
-    def test_validate_user_options_invalid_empty_path(
-            self,
-            monkeypatch,
-            workflow,
-            default_options
-    ):
-        user_options = default_options.copy()
-        user_options["Path"] = None
-        user_options["Language"] = "eng"
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**user_options)
-
     @pytest.mark.parametrize("check_function", ["isdir", "exists"])
     def test_validate_user_options_invalid(
             self,
@@ -152,18 +142,19 @@ class TestOCRWorkflow:
             check_function
     ):
         import os
-        user_options = default_options.copy()
-        user_options["Path"] = os.path.join("some", "path")
-        user_options["Language"] = "eng"
-
-        monkeypatch.setattr(
-            workflow_ocr.os.path,
-            check_function,
-            lambda path: False
+        user_args = default_options.copy()
+        user_args["Path"] = os.path.join("some", "path")
+        user_args["Language"] = "eng"
+        findings = validate_user_input(
+            {
+                value.setting_name or value.label: value
+                for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_args
+                )
+            }
         )
-
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**user_options)
+        assert len(findings) > 0
 
     def test_discover_task_metadata(self, workflow, default_options, monkeypatch):
         user_options = default_options.copy()
@@ -187,7 +178,7 @@ class TestOCRWorkflow:
             tasks_generated = workflow.discover_task_metadata(
                 initial_results=initial_results,
                 additional_data=additional_data,
-                **user_options
+                user_args=user_options
             )
         assert len(tasks_generated) == 1
         task = tasks_generated[0]
@@ -215,7 +206,7 @@ class TestOCRWorkflow:
         #
         options_backend = Mock(get=lambda key: {"Tesseract data file location": "/some/file/path"}.get(key))
         workflow.set_options_backend(options_backend)
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
         assert task_builder.add_subtask.called is True
         GenerateOCRFileTask.assert_called_with(
             source_image=job_args['source_file_path'],
@@ -230,7 +221,7 @@ class TestOCRWorkflow:
             speedwagon.tasks.Result(workflow_ocr.GenerateOCRFileTask, {}),
             speedwagon.tasks.Result(workflow_ocr.GenerateOCRFileTask, {}),
         ]
-        report = workflow.generate_report(results=results, **user_args)
+        report = workflow.generate_report(results=results, user_args=user_args)
         assert "Completed generating OCR 2 files" in report
 
     @pytest.mark.parametrize("image_file_type,expected_file_extension", [
@@ -251,7 +242,7 @@ class TestOCRWorkflow:
             FindImagesTask
         )
 
-        workflow.initial_task(task_builder, **user_args)
+        workflow.initial_task(task_builder, user_args)
         assert task_builder.add_subtask.called is True
 
         FindImagesTask.assert_called_with(

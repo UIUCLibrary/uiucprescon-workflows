@@ -1,6 +1,7 @@
 from unittest.mock import Mock
 
 import pytest
+from speedwagon.utils import assign_values_to_job_options, validate_user_input
 
 from speedwagon_uiucprescon import workflow_zip_packages
 
@@ -73,8 +74,16 @@ class TestZipPackagesWorkflow:
             lambda path: (path == user_args['Source']) or
                          (path == user_args['Output'] and output_isdir)
         )
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**user_args)
+        findings = validate_user_input(
+            {
+                value.setting_name or value.label: value
+                for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_args
+                )
+            }
+        )
+        assert len(findings) > 0
 
     def test_discover_task_metadata(
             self,
@@ -101,7 +110,7 @@ class TestZipPackagesWorkflow:
             workflow.discover_task_metadata(
                 initial_results=initial_results,
                 additional_data=additional_data,
-                **user_args
+                user_args=user_args
             )
 
         assert len(task_metadata) == 1 and \
@@ -123,7 +132,7 @@ class TestZipPackagesWorkflow:
             ZipTask
         )
 
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
 
         assert task_builder.add_subtask.called is True
 
@@ -138,7 +147,7 @@ class TestZipPackagesWorkflow:
         user_args["Source"] = os.path.join("some", "source")
         user_args["Output"] = os.path.join("some", "output")
         results = []
-        report = workflow.generate_report(results=results, **user_args)
+        report = workflow.generate_report(results=results, user_args=user_args)
         assert "Zipping complete" in report
 
 

@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import typing
 from typing import Optional
 
 from pyhathiprep import package_creater
@@ -9,7 +10,17 @@ from pyhathiprep import package_creater
 import speedwagon
 
 
-class MakeMetaYamlTask(speedwagon.tasks.Subtask):
+MakeMetaYamlReport = typing.TypedDict(
+    "MakeMetaYamlReport",
+    {
+        "source": str,
+        "meta.yml": str,
+        "package_id": str
+    }
+)
+
+
+class MakeMetaYamlTask(speedwagon.tasks.Subtask[MakeMetaYamlReport]):
     """HathiTrust YAML creation task."""
 
     name = "Create meta.yml"
@@ -55,7 +66,19 @@ class MakeMetaYamlTask(speedwagon.tasks.Subtask):
         return successful
 
 
-class GenerateChecksumTask(speedwagon.tasks.Subtask):
+GenerateChecksumTaskResults = typing.TypedDict(
+    "GenerateChecksumTaskResults",
+    {
+        "source": str,
+        "checksum": str,
+        "package_id": str
+    }
+)
+
+
+class GenerateChecksumTask(
+    speedwagon.tasks.Subtask[GenerateChecksumTaskResults]
+):
     """Checksum generation task."""
 
     name = "Generate Checksum"
@@ -100,7 +123,7 @@ class GenerateChecksumTask(speedwagon.tasks.Subtask):
         return success
 
 
-class PrepTask(speedwagon.tasks.Subtask):
+class PrepTask(speedwagon.tasks.Subtask[None]):
     """Prep package file structure."""
 
     name = "Prep"

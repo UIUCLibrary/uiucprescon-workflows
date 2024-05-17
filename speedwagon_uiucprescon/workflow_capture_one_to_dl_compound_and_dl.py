@@ -10,66 +10,57 @@ Notes:
 
 from __future__ import annotations
 import logging
-import os
 import typing
 
-try:  # pragma: no cover
-    from typing import TypedDict
-except ImportError:  # pragma: no cover
-    from typing_extensions import TypedDict
 
-try:  # pragma: no cover
-    from typing import Final
-except ImportError:  # pragma: no cover
-    from typing_extensions import Final  # type: ignore
-
-
-from typing import List, Any, Dict, Callable, Optional, Union, \
-    Iterable
+from typing import List, Dict, Callable, Optional, Union, Mapping, TypedDict
 
 
 from uiucprescon import packager
 from uiucprescon.packager.packages.abs_package_builder import AbsPackageBuilder
-from uiucprescon.packager.packages.collection_builder import Metadata
+from uiucprescon.packager.common import Metadata
 from uiucprescon.packager.packages.collection import \
-    AbsPackageComponent, \
     Package
 
 import speedwagon
 import speedwagon.workflow
-from speedwagon import validators, utils
+from speedwagon import utils
 from speedwagon.job import Workflow
-
 import speedwagon.exceptions
+
+from speedwagon_uiucprescon import conditions
+
+if typing.TYPE_CHECKING:
+    import sys
+    # pragma: no cover
+    if sys.version_info >= (3, 11):
+        from typing import Never
+    else:
+        from typing_extensions import Never
+    from speedwagon.workflow import UserData
 
 __all__ = ['CaptureOneToDlCompoundAndDLWorkflow']
 
-# =========================== USER OPTIONS CONSTANTS ======================== #
-OUTPUT_HATHITRUST: Final[str] = "Output HathiTrust"
-OUTPUT_DIGITAL_LIBRARY: Final[str] = "Output Digital Library"
-USER_INPUT_PATH: Final[str] = "Input"
-PACKAGE_TYPE: Final[str] = "Package Type"
-# =========================================================================== #
 
-# If https://github.com/python/mypy/issues/4128 is ever resolved, remove the
-# mypy linter ignore
 UserArgs = TypedDict(
     'UserArgs',
     {
-        USER_INPUT_PATH: str,  # type: ignore
-        PACKAGE_TYPE: str,
-        OUTPUT_DIGITAL_LIBRARY: str,
-        OUTPUT_HATHITRUST: str
+        "Input": str,
+        "Package Type": str,
+        "Output Digital Library": str,
+        "Output HathiTrust": str
     },
 )
 
-
-class JobArguments(TypedDict):
-    package: AbsPackageComponent
-    output_dl: Optional[str]
-    output_ht: Optional[str]
-    source_path: str
-
+JobArguments = TypedDict(
+    "JobArguments",
+    {
+        "package": Package,
+        "output_dl": Optional[str],
+        "output_ht": Optional[str],
+        "source_path": str,
+    }
+)
 
 SUPPORTED_PACKAGE_SOURCES: \
     Dict[str,  packager.packages.abs_package_builder.AbsPackageBuilder] = {
@@ -80,7 +71,40 @@ SUPPORTED_PACKAGE_SOURCES: \
     }
 
 
-class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
+def at_least_one_output_is_selected(
+        candidate: Optional[str],
+        job_args: UserData,
+        *keys: str
+) -> bool:
+    if candidate is not None and candidate.strip() != '':
+        return True
+
+    # Check if any job arg with the given keys is set with a value. If the
+    # value is a string,strip any whitespace before evaluating
+    return any(
+        filter(
+            lambda val: (
+                val.strip() != '' if isinstance(val, str)
+                else val is not None
+            ),
+            [job_args.get(key) for key in keys]
+        )
+    )
+
+
+def candidate_is_empty(candidate: Optional[str], _: UserData) -> bool:
+    if candidate is None:
+        return True
+    return isinstance(candidate, str) and candidate.strip() == ""
+
+
+def candidate_is_not_empty(candidate: Optional[str], _: UserData) -> bool:
+    if candidate is None:
+        return False
+    return not isinstance(candidate, str) or candidate.strip() != ""
+
+
+class CaptureOneToDlCompoundAndDLWorkflow(Workflow[UserArgs]):
     """Settings for convert capture one tiff files.
 
     .. versionchanged:: 0.1.5
@@ -105,9 +129,11 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
                   "HathiTrust."
     active = True
 
-    def job_options(
-            self
-    ) -> List[speedwagon.workflow.AbsOutputOptionDataType]:
+    def job_options(self) -> List[
+        speedwagon.workflow.AbsOutputOptionDataType[
+            speedwagon.workflow.UserDataType
+        ]
+    ]:
         """Request user options.
 
         User Options include:
@@ -116,27 +142,81 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
             * Output Digital Library - Output path to save new DL packages
             * Output HathiTrust - Output path to save new HT packages
         """
-        input_path = speedwagon.workflow.DirectorySelect(USER_INPUT_PATH)
+        input_path =\
+            speedwagon.workflow.DirectorySelect("Input", required=True)
+
+        input_path.add_validation(speedwagon.validators.ExistsOnFileSystem())
+
+        input_path.add_validation(
+            speedwagon.validators.IsDirectory(),
+            condition=conditions.candidate_exists
+        )
 
         package_type_selection = \
-            speedwagon.workflow.ChoiceSelection(PACKAGE_TYPE)
+            speedwagon.workflow.ChoiceSelection("Package Type")
 
         package_type_selection.placeholder_text = "Select a Package Type"
         for package_type_name in SUPPORTED_PACKAGE_SOURCES:
             package_type_selection.add_selection(package_type_name)
 
-        output_digital_library = \
+        output_digital_library =\
             speedwagon.workflow.DirectorySelect(
-                OUTPUT_DIGITAL_LIBRARY,
+                "Output Digital Library",
                 required=False
             )
 
-        output_hathi_trust = \
+        output_digital_library.add_validation(
+            speedwagon.validators.CustomValidation[Union[str, None]](
+                query=(
+                    lambda candidate, job_args: (
+                        at_least_one_output_is_selected(
+                            candidate,
+                            job_args,
+                            "Output HathiTrust"
+                        )
+                    )
+                ),
+                failure_message_function=(
+                    lambda value: "At least one output is required"
+                ),
+            ),
+            condition=candidate_is_empty
+        )
+
+        output_digital_library.add_validation(
+            speedwagon.validators.ExistsOnFileSystem(),
+            condition=candidate_is_not_empty
+        )
+
+        output_hathi_trust =\
             speedwagon.workflow.DirectorySelect(
-                OUTPUT_HATHITRUST,
+                "Output HathiTrust",
                 required=False
             )
 
+        output_hathi_trust.add_validation(
+            speedwagon.validators.CustomValidation[str](
+                query=(
+                    lambda candidate, job_args: (
+                        at_least_one_output_is_selected(
+                            candidate,
+                            job_args,
+                            "Output Digital Library"
+                        )
+                    )
+                ),
+                failure_message_function=(
+                    lambda value: "At least one output is required"
+                )
+            ),
+            condition=candidate_is_empty
+        )
+        output_digital_library.add_validation(
+            speedwagon.validators.IsDirectory(
+                message_template="{} is not a path to a valid directory"
+            ),
+            condition=candidate_is_not_empty
+        )
         return [
             input_path,
             package_type_selection,
@@ -145,11 +225,16 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
         ]
 
     def discover_task_metadata(
-            self,
-            initial_results: List[Any],
-            additional_data: Dict[str, str],
-            **user_args: typing.Optional[str]
-    ) -> List[Dict[str, Union[str, AbsPackageComponent]]]:
+        self,
+        initial_results: List[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[Never]
+        ],
+        additional_data: Mapping[  # pylint: disable=unused-argument
+            str,
+            Never
+        ],
+        user_args: UserArgs,
+    ) -> List[JobArguments]:
         """Loot at user settings and discover any data needed to build a task.
 
         Args:
@@ -161,17 +246,16 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
             Returns a list of data to create a job with
 
         """
-        user_arguments: UserArgs = typing.cast(UserArgs, user_args)
-        source_input = user_arguments[USER_INPUT_PATH]  # type: ignore
-        dest_dl = user_arguments[OUTPUT_DIGITAL_LIBRARY]  # type: ignore
-        dest_ht = user_arguments[OUTPUT_HATHITRUST]  # type: ignore
+        source_input = user_args["Input"]
+        dest_dl = user_args["Output Digital Library"]
+        dest_ht = user_args["Output HathiTrust"]
         package_type = SUPPORTED_PACKAGE_SOURCES.get(
-            user_arguments["Package Type"]  # type: ignore
+            user_args["Package Type"]
         )
         if package_type is None:
             raise ValueError(
                 f"Unknown package type "
-                f"{user_arguments['Package Type']}"  # type: ignore
+                f"{user_args['Package Type']}"
             )
         package_factory = packager.PackageFactory(package_type)
 
@@ -179,12 +263,12 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
         try:
             for package in package_factory.locate_packages(source_input):
                 jobs.append(
-                    JobArguments({
+                    {
                         "package": package,
                         "output_dl": dest_dl,
                         "output_ht": dest_ht,
                         "source_path": source_input
-                    })
+                    }
                 )
         except Exception as error:
             raise speedwagon.exceptions.SpeedwagonException(
@@ -197,64 +281,13 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
                 f"and/or the structure of the files and folders match the "
                 f"Package Type."
             )
-        return typing.cast(List[Dict[str, typing.Union[str, Any]]], jobs)
+        return jobs
 
-    @staticmethod
-    def validate_user_options(**user_args: str) -> bool:
-        """Validate the user's arguments.
-
-        Raises a value error is something is not valid.
-
-        Args:
-            **user_args:
-
-        """
-        user_arguments: UserArgs = typing.cast(UserArgs, user_args)
-        option_validators = validators.OptionValidator()
-
-        option_validators.register_validator(
-            'At least one output',
-            MinimumOutputsValidator(
-                at_least_one_of=[
-                    OUTPUT_DIGITAL_LIBRARY,
-                    OUTPUT_HATHITRUST
-                ]
-            )
-        )
-        option_validators.register_validator(
-            'At least one output exists',
-            OutputsValidValuesValidator(
-                keys_to_check=[
-                    OUTPUT_DIGITAL_LIBRARY,
-                    OUTPUT_HATHITRUST
-                ]
-            )
-        )
-
-        option_validators.register_validator(
-            USER_INPUT_PATH,
-            validators.DirectoryValidation(key=USER_INPUT_PATH)
-        )
-        invalid_messages: List[str] = []
-        for validation in [
-            option_validators.get('At least one output'),
-            option_validators.get('At least one output exists'),
-            option_validators.get(USER_INPUT_PATH)
-
-        ]:
-            if not validation.is_valid(**user_arguments):  # type: ignore
-                invalid_messages.append(
-                    validation.explanation(**user_arguments)  # type: ignore
-                )
-
-        if len(invalid_messages) > 0:
-            raise ValueError("\n".join(invalid_messages))
-        return True
-
-    def create_new_task(self,
-                        task_builder: speedwagon.tasks.TaskBuilder,
-                        **job_args: Union[str, AbsPackageComponent]
-                        ) -> None:
+    def create_new_task(
+        self,
+        task_builder: speedwagon.tasks.TaskBuilder,
+        job_args: JobArguments
+    ) -> None:
         """Generate a new task.
 
         Args:
@@ -262,21 +295,16 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
             **job_args:
 
         """
-        job_arguments = typing.cast(JobArguments, job_args)
 
-        existing_package: Package = typing.cast(
-            Package,
-            job_arguments['package']
-        )
-
-        source_path = job_arguments["source_path"]
+        existing_package = job_args['package']
+        source_path = job_args["source_path"]
 
         package_id: str = typing.cast(
             str,
             existing_package.metadata[Metadata.ID]
         )
 
-        new_dl_package_root = job_arguments.get("output_dl")
+        new_dl_package_root = job_args.get("output_dl")
         if new_dl_package_root is not None:
             dl_packaging_task = PackageConverter(
                 source_path=source_path,
@@ -287,7 +315,7 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
             )
             task_builder.add_subtask(dl_packaging_task)
 
-        new_ht_package_root = job_arguments.get("output_ht")
+        new_ht_package_root = job_args.get("output_ht")
         if new_ht_package_root is not None:
             ht_packaging_task = PackageConverter(
                 source_path=source_path,
@@ -300,67 +328,7 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow):
             task_builder.add_subtask(ht_packaging_task)
 
 
-class OutputsValidValuesValidator(validators.AbsOptionValidator):
-    """Validator to make sure that output directories are valid."""
-
-    def __init__(self, keys_to_check: Iterable[str]) -> None:
-        super().__init__()
-        self.keys_to_check = keys_to_check
-        self.directory_validator = None
-
-    @staticmethod
-    def is_entry_valid_dir(
-            entry: str,
-            callback: Optional[Callable[[str], bool]] = None
-    ) -> bool:
-
-        if entry is None or entry == "":
-            return True
-        return (callback or os.path.exists)(entry)
-
-    def is_valid(self, **user_data: Any) -> bool:
-        return all(self.is_entry_valid_dir(
-                    user_data[key],
-                    self.directory_validator
-            ) for key in self.keys_to_check)
-
-    def explanation(self, **user_data: Any) -> str:
-        folders_not_exists: typing.Set[str] = {
-            user_data[key]
-            for key in self.keys_to_check
-            if not self.is_entry_valid_dir(
-                user_data[key], self.directory_validator
-            )
-        }
-        if len(folders_not_exists) > 0:
-            return "\n".join(
-                f"Directory {directory} does not exist"
-                for directory in folders_not_exists
-            )
-        return "ok"
-
-
-class MinimumOutputsValidator(validators.AbsOptionValidator):
-
-    def __init__(self, at_least_one_of: List[str]) -> None:
-        super().__init__()
-        self.keys = at_least_one_of
-        self._validators = []
-        for k in self.keys:
-            self._validators.append(validators.DirectoryValidation(k))
-
-    def is_valid(self, **user_data: Any) -> bool:
-        return any(f.is_valid(**user_data) for f in self._validators)
-
-    def explanation(self, **user_data: Any) -> str:
-        if self.is_valid(**user_data) is False:
-            return \
-                f'One of the follow outputs must be valid: ' \
-                f'{", ".join(self.keys)}'
-        return "ok"
-
-
-class PackageConverter(speedwagon.tasks.Subtask):
+class PackageConverter(speedwagon.tasks.Subtask[None]):
     """Convert packages formats."""
 
     name = "Package Conversion"

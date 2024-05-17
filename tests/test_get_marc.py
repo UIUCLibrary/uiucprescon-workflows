@@ -4,9 +4,9 @@ from io import StringIO
 from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import requests
-
-# import speedwagon
+from speedwagon import validators
 import speedwagon.exceptions
+from speedwagon.utils import assign_values_to_job_options, validate_user_input
 import xml.etree.ElementTree as ET
 from speedwagon_uiucprescon import workflow_get_marc
 
@@ -33,27 +33,28 @@ def test_input_dir_is_valid(tmp_path, unconfigured_workflow):
     workflow.validate_user_options(**user_options)
 
 
-def test_invalid_input_dir_raises(monkeypatch, unconfigured_workflow):
+def test_invalid_input_dir(monkeypatch, unconfigured_workflow):
     workflow, user_options = unconfigured_workflow
-
-    def mock_exists(path):
-        return False
-
-    def mock_isdir(path):
-        return path in user_options.values()
-
-    with monkeypatch.context() as mp:
-        mp.setattr(os.path, "exists", mock_exists)
-        options = {
-            "Input": "./invalid_path",
-            "Identifier type": "MMS ID",
-            'Add 955 field': False,
-            'Add 035 field': False
-
+    path_exists = Mock(return_value=False)
+    monkeypatch.setattr(validators.ExistsOnFileSystem, "path_exists", path_exists)
+    monkeypatch.setattr(validators.IsDirectory, "is_dir", lambda x: True)
+    user_args = {
+        "Input": "./invalid_path",
+        "Identifier type": "MMS ID",
+        'Add 955 field': False,
+        'Add 035 field': False
+    }
+    findings = validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
         }
-        with pytest.raises(ValueError) as exception_info:
-            workflow.validate_user_options(**options)
-        assert '"./invalid_path" does not exist' in str(exception_info.value)
+    )
+    path_exists.assert_called_with("./invalid_path")
+    assert findings["Input"] == ['./invalid_path does not exist']
 
 
 def test_discover_metadata(unconfigured_workflow, monkeypatch):
@@ -75,7 +76,7 @@ def test_discover_metadata(unconfigured_workflow, monkeypatch):
     monkeypatch.setattr(os, 'scandir', get_data)
     workflow.global_settings["getmarc_server_url"] = "http://fake.com"
     user_options["Input"] = "/fakepath"
-    jobs = workflow.discover_task_metadata([], None, **user_options)
+    jobs = workflow.discover_task_metadata([], None, user_options)
     assert len(jobs) == 2
     assert jobs[0]['path'] == "/fakepath/99101026212205899"
     assert jobs[0]['directory']['value'] == "99101026212205899"
@@ -172,7 +173,8 @@ def test_generate_report_success(unconfigured_workflow):
                 "success": True,
                 "identifier": "097"
             })
-        ]
+        ],
+        user_args=user_options
     )
 
     assert "Success" in report
@@ -187,7 +189,8 @@ def test_generate_report_failure(unconfigured_workflow):
                 "identifier": "097",
                 "output": "Something bad happened"
             })
-        ]
+        ],
+        user_args=user_options
     )
 
     assert "Warning" in report
@@ -249,7 +252,7 @@ def test_create_new_task(unconfigured_workflow, identifier_type,
     mock_task_builder = Mock()
     workflow.create_new_task(
         task_builder=mock_task_builder,
-        **job_args
+        job_args=job_args
     )
     mock_task_builder.add_subtask.assert_called()
     assert mock_task_builder.add_subtask.call_count == 1
@@ -285,7 +288,7 @@ def test_955_added_to_tasks(unconfigured_workflow, identifier_type,
     mock_task_builder = Mock()
     workflow.create_new_task(
         task_builder=mock_task_builder,
-        **job_args
+        job_args=job_args
     )
     mock_task_builder.add_subtask.assert_called()
     assert mock_task_builder.add_subtask.call_count == 2
@@ -516,9 +519,6 @@ def test_995_enhancement_task_adds_955(identifier_type, subdirectory,
                          identifier_dirs)
 def test_995_enhancement_task_formats_without_namespace_tags(
         tmpdir, identifier_type, subdirectory, identifier, volume):
-    # dummy_xml = tmpdir / "MARC.xml"
-    # with open(dummy_xml, "w") as wf:
-    #     wf.write(SAMPLE_RECORD)
     with patch('builtins.open', mock_open(read_data=SAMPLE_RECORD)) as m:
         task = workflow_get_marc.MarcEnhancement955Task(
             added_value=subdirectory,
@@ -569,46 +569,40 @@ def test_955_and_035_is_valid(monkeypatch, unconfigured_workflow):
 
 def test_missing_Identifier_type_invalid(monkeypatch, unconfigured_workflow):
     workflow, user_options = unconfigured_workflow
-    user_options['Input'] = "/valid"
-    user_options['Add 955 field'] = True
-    user_options['Add 035 field'] = True
-    user_options["Identifier type"] = ""
-
-    def mock_exists(path):
-        return path in user_options.values()
-
-    def mock_isdir(path):
-        return path in user_options.values()
-
-    with monkeypatch.context() as mp:
-        mp.setattr(os.path, "exists", mock_exists)
-        mp.setattr(os.path, "isdir", mock_isdir)
-
-        with pytest.raises(ValueError) as exception_info:
-            workflow.validate_user_options(**user_options)
-        assert "Missing Identifier type" in str(exception_info.value)
-
+    user_args = {
+        "Input": "/valid",
+        "Add 955 field": True,
+        "Add 035 field": True,
+        "Identifier type": ''
+    }
+    findings = speedwagon.utils.validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert findings['Identifier type'] == ["Required value missing"]
 
 def test_955_false_and_035_True_is_invalid(monkeypatch, unconfigured_workflow):
     workflow, user_options = unconfigured_workflow
-    user_options['Input'] = "/valid"
-    user_options['Add 955 field'] = False
-    user_options['Add 035 field'] = True
-
-    def mock_exists(path):
-        return path in user_options.values()
-
-    def mock_isdir(path):
-        return path in user_options.values()
-
-    with monkeypatch.context() as mp:
-        mp.setattr(os.path, "exists", mock_exists)
-        mp.setattr(os.path, "isdir", mock_isdir)
-        with pytest.raises(ValueError) as exception_info:
-            workflow.validate_user_options(**user_options)
-
-        assert \
-            "Add 035 field requires Add 955 field" in str(exception_info.value)
+    user_args = {
+        "Input": "/valid",
+        "Add 955 field": False,
+        "Add 035 field": True,
+    }
+    findings = speedwagon.utils.validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert findings['Add 035 field'] == ["Add 035 field requires Add 955 field"]
 
 
 field_combos = [
@@ -624,24 +618,29 @@ def test_955_and035(f955, f035, expected_valid,
                     monkeypatch, unconfigured_workflow):
 
     workflow, user_options = unconfigured_workflow
-    user_options['Input'] = "/valid"
-    user_options['Add 955 field'] = f955
-    user_options['Add 035 field'] = f035
 
-    def mock_exists(path):
-        return path in user_options.values()
-
-    def mock_isdir(path):
-        return path in user_options.values()
-
-    with monkeypatch.context() as mp:
-        mp.setattr(os.path, "exists", mock_exists)
-        mp.setattr(os.path, "isdir", mock_isdir)
-        if expected_valid is False:
-            with pytest.raises(ValueError):
-                workflow.validate_user_options(**user_options)
-        else:
-            workflow.validate_user_options(**user_options)
+    user_args = {
+        "Input": "/valid",
+        "Add 955 field": f955,
+        "Add 035 field": f035,
+        "Identifier type": "MMS ID"
+    }
+    path_exists = Mock(return_value=True)
+    monkeypatch.setattr(
+        validators.ExistsOnFileSystem,
+        "path_exists",
+        path_exists
+    )
+    findings = speedwagon.utils.validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert (len(findings) == 0) is expected_valid, f"Findings were {findings}"
 
 
 def test_035_task_has_959():
@@ -725,7 +724,7 @@ def test_create_task_enhancements(
     mock_task_builder = Mock()
     workflow.create_new_task(
         task_builder=mock_task_builder,
-        **job_args
+        job_args=job_args
     )
     mock_task_builder.add_subtask.assert_called()
     assert mock_task_builder.add_subtask.call_count == \
@@ -789,7 +788,7 @@ def test_discover_task_metadata(monkeypatch, unconfigured_workflow, arg_subdir,
         t_md = workflow.discover_task_metadata(
             initial_results=[],
             additional_data=None,
-            **user_args
+            user_args=user_args
         )
     assert len(t_md) == 1
     actual = t_md[0]

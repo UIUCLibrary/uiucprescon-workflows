@@ -4,34 +4,50 @@ Added on 3/30/2022
 
 .. versionadded:: 0.3.0 added option for removing Thumbs.db files.
 """
-
+from __future__ import annotations
 import abc
 import os
 import pathlib
 import typing
-from typing import List, Any, Dict, Optional, Iterator, Union, Callable
+from typing import List, Dict, Optional, Iterator, Union, TypedDict, Mapping
 from pathlib import Path
+
 import speedwagon
-from speedwagon import workflow, tasks
+from speedwagon import workflow, tasks, validators
 from speedwagon.frontend import interaction
 from speedwagon.tasks import filesystem as filesystem_tasks
+from speedwagon_uiucprescon import conditions
+
+if typing.TYPE_CHECKING:
+    import sys
+    if sys.version_info >= (3, 11):
+        from typing import Unpack, Never
+    else:
+        from typing_extensions import Unpack, Never
 
 __all__ = ['MedusaPreingestCuration']
 
 
-def validate_missing_values(user_args: Dict[str, Union[str, bool]]) -> None:
-    path = user_args.get("Path")
-    if path is None:
-        raise ValueError("Missing Value")
+UserArgs = TypedDict(
+    "UserArgs", {
+        "Path": str,
+        "Include Subdirectories": bool,
+        "Locate and delete Capture One files": bool,
+        "Locate and delete dot underscore files": bool,
+        "Locate and delete .DS_Store files": bool,
+        "Locate and delete Thumbs.db files": bool,
+    }
+)
+
+TaskArgs = TypedDict(
+    "TaskArgs", {
+        "type": str,
+        "path": str
+    }
+)
 
 
-def validate_path_valid(user_args: Dict[str, Union[str, bool]]) -> None:
-    path = user_args["Path"]
-    if not os.path.exists(path):
-        raise ValueError(f"Unable to locate {path}")
-
-
-class MedusaPreingestCuration(speedwagon.Workflow):
+class MedusaPreingestCuration(speedwagon.Workflow[UserArgs]):
     """Medusa Preingest curation Workflow."""
 
     name = "Medusa Preingest Curation"
@@ -43,26 +59,14 @@ class MedusaPreingestCuration(speedwagon.Workflow):
 -  Locates and deletes Capture One files
     """.strip()
 
-    validation_checks: List[Callable[[Dict[str, Union[str, bool]]], None]] = [
-        validate_missing_values,
-        validate_path_valid
-    ]
-
     def initial_task(self, task_builder: tasks.TaskBuilder,
-                     **user_args) -> None:
+                     user_args: UserArgs) -> None:
         """Add task to search for files to be removed."""
         task_builder.add_subtask(FindOffendingFiles(**user_args))
-        super().initial_task(task_builder, **user_args)
+        super().initial_task(task_builder, user_args)
 
     @staticmethod
-    def validate_user_options(**user_args) -> bool:
-        """Validate user args."""
-        for check in MedusaPreingestCuration.validation_checks:
-            check(user_args)
-        return True
-
-    @staticmethod
-    def _build_task(item: pathlib.Path):
+    def _build_task(item: pathlib.Path) -> TaskArgs:
         if item.is_dir():
             return {
                 "type": "directory",
@@ -79,13 +83,15 @@ class MedusaPreingestCuration(speedwagon.Workflow):
         )
 
     def discover_task_metadata(
-            self,
-            initial_results: List[Any],
-            additional_data: Dict[str, Any],
-            **user_args
-    ) -> List[dict]:
+        self,
+        initial_results: List[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[Never]
+        ],
+        additional_data: Mapping[str, List[str]],
+        user_args: UserArgs,  # pylint: disable=unused-argument
+    ) -> List[TaskArgs]:
         """Organize the order the files & directories should be removed."""
-        new_tasks: List[Dict[str, str]] = []
+        new_tasks: List[TaskArgs] = []
         to_remove: typing.Set[str] = set()
 
         for item in additional_data.get('to remove', []):
@@ -105,12 +111,14 @@ class MedusaPreingestCuration(speedwagon.Workflow):
             to_remove.add(item)
         return new_tasks
 
+    AdditionalInfo = TypedDict("AdditionalInfo", {"to remove": List[str]})
+
     def get_additional_info(
-            self,
-            user_request_factory: interaction.UserRequestFactory,
-            options: dict,
-            pretask_results: list
-    ) -> dict:
+        self,
+        user_request_factory: interaction.UserRequestFactory,
+        options: UserArgs,
+        pretask_results: List[speedwagon.tasks.Result[List[str]]]
+    ) -> AdditionalInfo:
         """Confirm which files should be deleted or removed."""
         confirm = \
             user_request_factory.confirm_removal()
@@ -143,9 +151,16 @@ class MedusaPreingestCuration(speedwagon.Workflow):
             "directories": dirs,
         }
 
-    def job_options(self) -> List[workflow.AbsOutputOptionDataType]:
+    def job_options(self) -> List[
+        workflow.AbsOutputOptionDataType[workflow.UserDataType]
+    ]:
         """Get which types of files to search for."""
-        root_directory = speedwagon.workflow.DirectorySelect("Path")
+        root_directory = speedwagon.workflow.DirectorySelect("Path", True)
+        root_directory.add_validation(validators.ExistsOnFileSystem())
+        root_directory.add_validation(
+            validators.IsDirectory(),
+            condition=conditions.candidate_exists
+        )
 
         include_subdirectories = \
             speedwagon.workflow.BooleanSelect("Include Subdirectories")
@@ -186,9 +201,9 @@ class MedusaPreingestCuration(speedwagon.Workflow):
 
     @classmethod
     def generate_report(
-            cls,
-            results: List[tasks.Result],
-            **user_args
+        cls,
+        results: List[tasks.Result[List[str]]],  # pylint: disable=W0613
+        user_args: UserArgs  # pylint: disable=unused-argument
     ) -> Optional[str]:
         """Generate a report about what files and directories were removed.
 
@@ -213,8 +228,11 @@ class MedusaPreingestCuration(speedwagon.Workflow):
         ]
         return "\n".join(report_lines)
 
-    def create_new_task(self, task_builder: tasks.TaskBuilder,
-                        **job_args) -> None:
+    def create_new_task(
+        self,
+        task_builder: tasks.TaskBuilder,
+        job_args: TaskArgs
+    ) -> None:
         """Add a delete file or delete directory task to the task list.
 
         Args:
@@ -279,9 +297,9 @@ class OffendingPathDecider(AbsPathItemDecision):
         return any(not checker.is_valid(path) for checker in self._checkers)
 
 
-class FindOffendingFiles(tasks.Subtask):
+class FindOffendingFiles(tasks.Subtask[List[str]]):
 
-    def __init__(self, **user_args) -> None:
+    def __init__(self, **user_args: Unpack[UserArgs]) -> None:
         super().__init__()
         self.filesystem_locator_strategy = FilesystemItemLocator()
 

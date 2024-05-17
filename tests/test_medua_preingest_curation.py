@@ -3,6 +3,7 @@ import pathlib
 from unittest.mock import Mock, MagicMock
 
 import pytest
+from speedwagon.utils import assign_values_to_job_options
 
 from speedwagon_uiucprescon import workflow_medusa_preingest
 from speedwagon.frontend import interaction
@@ -21,15 +22,17 @@ class TestMedusaPreingestCuration:
         return workflow_medusa_preingest.MedusaPreingestCuration()
 
     def test_default_user_args_are_invalidate(self, workflow, default_args):
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**default_args)
-
-    def test_valid_user_args_returns_true(self, workflow, default_args):
-        workflow_medusa_preingest.MedusaPreingestCuration.validation_checks = (
-            []
+        user_args = default_args.copy()
+        findings = speedwagon.utils.validate_user_input(
+            {
+                value.setting_name or value.label: value
+                for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_args
+                )
+            }
         )
-
-        assert workflow.validate_user_options(**default_args) is True
+        assert findings['Path'] == ['Required value missing']
 
     def test_sort_item_data_unknown_throw(self, workflow, monkeypatch):
         data = [
@@ -98,7 +101,7 @@ class TestMedusaPreingestCuration:
             additional_data={
                 "to remove": removal_files + removal_dirs + nested_dirs
             },
-            **default_args,
+            user_args=default_args,
         )
 
         assert all(
@@ -140,7 +143,7 @@ class TestMedusaPreingestCuration:
     def test_create_new_task(self, workflow, job_args, expected_class):
         task_builder = Mock(name="task_builder")
         task_builder.add_subtask = Mock(name="add_subtask")
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
 
         assert isinstance(
             task_builder.add_subtask.call_args[0][0], expected_class
@@ -148,7 +151,7 @@ class TestMedusaPreingestCuration:
 
     def test_initial_task_adds_finding_task(self, workflow, default_args):
         task_builder = Mock(spec=speedwagon.tasks.TaskBuilder)
-        workflow.initial_task(task_builder, **default_args)
+        workflow.initial_task(task_builder, default_args)
 
         assert (
             task_builder.add_subtask.call_args[0][0].__class__.__name__
@@ -163,7 +166,7 @@ class TestMedusaPreingestCuration:
                 data="some_file",
             )
         ]
-        report = workflow.generate_report(results=results, **default_args)
+        report = workflow.generate_report(results=results, user_args=default_args)
         assert "some_file" in report
 
 
@@ -173,15 +176,26 @@ def default_user_args():
     return {data.label: data.value for data in workflow.job_options()}
 
 
-def test_validate_missing_values():
-    with pytest.raises(ValueError):
-        workflow_medusa_preingest.validate_missing_values({})
+def test_validate_no_missing_values(default_user_args, monkeypatch):
+    user_args = default_user_args.copy()
 
-
-def test_validate_no_missing_values(default_user_args):
-    values = default_user_args.copy()
-    values["Path"] = "something"
-    workflow_medusa_preingest.validate_missing_values(values)
+    user_args["Path"] = "something"
+    workflow = workflow_medusa_preingest.MedusaPreingestCuration()
+    monkeypatch.setattr(
+        speedwagon.validators.ExistsOnFileSystem,
+        "path_exists",
+        lambda *_: True
+    )
+    findings = speedwagon.utils.validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert len(findings) == 0, findings
 
 
 def test_validate_path_valid(monkeypatch):
@@ -192,21 +206,51 @@ def test_validate_path_valid(monkeypatch):
         "exists",
         lambda path: path == supposed_to_be_real_path,
     )
-
-    workflow_medusa_preingest.validate_path_valid(
-        {"Path": supposed_to_be_real_path}
+    monkeypatch.setattr(
+        speedwagon.validators.ExistsOnFileSystem,
+        "path_exists",
+        lambda *_: True
     )
+    monkeypatch.setattr(
+        speedwagon.validators.IsDirectory,
+        "is_dir",
+        lambda *_: True
+    )
+    user_args = {"Path": supposed_to_be_real_path}
+    workflow = workflow_medusa_preingest.MedusaPreingestCuration()
+    findings = speedwagon.utils.validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert len(findings) == 0
 
 
 def test_validate_path_invalid(monkeypatch):
     invalid_path = "./some/valid/path"
 
+    user_args= {"Path": invalid_path}
+    workflow = workflow_medusa_preingest.MedusaPreingestCuration()
     monkeypatch.setattr(
-        workflow_medusa_preingest.os.path, "exists", lambda path: False
+        speedwagon.validators.ExistsOnFileSystem,
+        "path_exists",
+        lambda *_: False
     )
 
-    with pytest.raises(ValueError):
-        workflow_medusa_preingest.validate_path_valid({"Path": invalid_path})
+    findings = speedwagon.utils.validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert findings['Path'] == ['./some/valid/path does not exist']
 
 
 class TestFindOffendingFiles:

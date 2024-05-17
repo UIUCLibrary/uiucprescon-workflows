@@ -52,7 +52,7 @@ class TestZipPackagesWorkflow:
             workflow.discover_task_metadata(
                 initial_results=initial_results,
                 additional_data=additional_data,
-                **user_args
+                user_args=user_args
             )
 
         assert \
@@ -87,7 +87,7 @@ class TestZipPackagesWorkflow:
             MakeChecksumTask
         )
 
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
 
         assert task_builder.add_subtask.called is True
         assert MakeChecksumTask.called is True
@@ -99,32 +99,30 @@ class TestZipPackagesWorkflow:
         )
 
     def test_generate_report(self, workflow, default_options):
-        ResultsValues = workflow_make_checksum.ResultsValues
         user_args = default_options.copy()
         results = [
             speedwagon.tasks.Result(
                 tasks.MakeChecksumTask,
                 {
-                    ResultsValues.CHECKSUM_FILE: "checksum.md5"
+                    "checksum_file": "checksum.md5"
                 }
             )
         ]
-        report = workflow.generate_report(results=results, **user_args)
+        report = workflow.generate_report(results=results, user_args=user_args)
         assert "Checksum values for" in report
 
     def test_completion_task(self, workflow, default_options):
         user_args = default_options.copy()
         task_builder = Mock()
-        ResultsValues = workflow_make_checksum.ResultsValues
         results = [
             speedwagon.tasks.Result(
                 tasks.MakeChecksumTask,
                 {
-                    ResultsValues.CHECKSUM_FILE: "checksum.md5"
+                    "checksum_file": "checksum.md5"
                 }
             )
         ]
-        workflow.completion_task(task_builder, results, **user_args)
+        workflow.completion_task(task_builder, results, user_args)
         assert task_builder.add_subtask.called is True
 
 
@@ -181,7 +179,7 @@ class TestRegenerateChecksumBatchSingleWorkflow:
             workflow.discover_task_metadata(
                 initial_results=initial_results,
                 additional_data=additional_data,
-                **user_args
+                user_args=user_args
             )
         assert len(task_metadata) == 1 and \
                task_metadata[0]['source_path'] == "some" and \
@@ -212,7 +210,7 @@ class TestRegenerateChecksumBatchSingleWorkflow:
             MakeChecksumTask
         )
 
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
 
         assert task_builder.add_subtask.called is True
         assert MakeChecksumTask.called is True
@@ -224,28 +222,26 @@ class TestRegenerateChecksumBatchSingleWorkflow:
         )
 
     def test_generate_report(self, workflow, default_options):
-        ResultsValues = workflow_make_checksum.ResultsValues
         user_args = default_options.copy()
         results = [
             speedwagon.tasks.Result(
                 tasks.MakeChecksumTask,
                 {
-                    ResultsValues.CHECKSUM_FILE: "checksum.md5"
+                    "checksum_file": "checksum.md5"
                 }
             )
         ]
-        report = workflow.generate_report(results=results, **user_args)
+        report = workflow.generate_report(results=results, user_args=user_args)
         assert "Checksum values for" in report
 
     def test_completion_task(self, monkeypatch, workflow, default_options):
         user_args = default_options.copy()
         task_builder = Mock()
-        ResultsValues = workflow_make_checksum.ResultsValues
         results = [
             speedwagon.tasks.Result(
                 tasks.MakeChecksumTask,
                 {
-                    ResultsValues.CHECKSUM_FILE: "checksum.md5"
+                    "checksum_file": "checksum.md5"
                 }
             )
         ]
@@ -258,7 +254,7 @@ class TestRegenerateChecksumBatchSingleWorkflow:
             MakeCheckSumReportTask
         )
 
-        workflow.completion_task(task_builder, results, **user_args)
+        workflow.completion_task(task_builder, results, user_args)
         assert task_builder.add_subtask.called is True
         assert MakeCheckSumReportTask.called is True
 
@@ -318,7 +314,7 @@ class TestRegenerateChecksumBatchMultipleWorkflow:
             workflow.discover_task_metadata(
                 initial_results=initial_results,
                 additional_data=additional_data,
-                **user_args
+                user_args=user_args
             )
         assert len(task_metadata) == 1 and \
                task_metadata[0]['source_path'] == os.path.join(
@@ -350,7 +346,7 @@ class TestRegenerateChecksumBatchMultipleWorkflow:
             MakeChecksumTask
         )
 
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
 
         assert task_builder.add_subtask.called is True
         assert MakeChecksumTask.called is True
@@ -362,28 +358,28 @@ class TestRegenerateChecksumBatchMultipleWorkflow:
         )
 
     def test_generate_report(self, workflow, default_options):
-        ResultsValues = workflow_make_checksum.ResultsValues
         user_args = default_options.copy()
         results = [
             speedwagon.tasks.Result(
                 tasks.MakeChecksumTask,
                 {
-                    ResultsValues.CHECKSUM_FILE: "checksum.md5"
+                    "checksum_file": "checksum.md5"
                 }
             )
         ]
-        report = workflow.generate_report(results=results, **user_args)
+        report = workflow.generate_report(
+            results=results, user_args=user_args
+        )
         assert "Checksum values for" in report
 
     def test_completion_task(self, monkeypatch, workflow, default_options):
         user_args = default_options.copy()
         task_builder = Mock()
-        ResultsValues = workflow_make_checksum.ResultsValues
         results = [
             speedwagon.tasks.Result(
                 tasks.MakeChecksumTask,
                 {
-                    ResultsValues.CHECKSUM_FILE: "checksum.md5"
+                    "checksum_file": "checksum.md5"
                 }
             )
         ]
@@ -396,7 +392,7 @@ class TestRegenerateChecksumBatchMultipleWorkflow:
             MakeCheckSumReportTask
         )
 
-        workflow.completion_task(task_builder, results, **user_args)
+        workflow.completion_task(task_builder, results, user_args)
         assert task_builder.add_subtask.called is True
         assert MakeCheckSumReportTask.called is True
 

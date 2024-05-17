@@ -7,12 +7,6 @@ import re
 import typing
 from copy import deepcopy
 
-try:  # pragma: no cover
-    from typing import Final
-except ImportError:  # pragma: no cover
-    from typing_extensions import Final  # type: ignore
-
-
 from typing import (
     List,
     Any,
@@ -22,11 +16,12 @@ from typing import (
     Dict,
     Tuple,
     Iterator,
-    Collection,
+    Mapping,
     TYPE_CHECKING,
     Callable,
     cast,
 )
+
 
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
@@ -41,17 +36,36 @@ from speedwagon.exceptions import (
     JobCancelled,
 )
 from speedwagon import reports, validators, workflow
+from speedwagon_uiucprescon import conditions
 
 if TYPE_CHECKING:
+    if sys.version_info >= (3, 8):
+        from typing import Final
+    else:
+        from typing_extensions import Final
+
+    if sys.version_info >= (3, 11):
+        from typing import Never
+    else:
+        from typing_extensions import Never
+
     from speedwagon.workflow import AbsOutputOptionDataType
 
 __all__ = ["GenerateMarcXMLFilesWorkflow"]
+
+MarcGeneratorTaskReport = typing.TypedDict(
+    "MarcGeneratorTaskReport", {
+        "success": bool,
+        "identifier": str,
+        "output": str,
+    }
+)
 
 
 class BadNamingError(SpeedwagonException):
     """Bad file naming. Does not match expected value."""
 
-    def __init__(self, msg, name, path, *args):
+    def __init__(self, msg: str, name: str, path: str, *args: Any) -> None:
         super().__init__(msg, *args)
         self.path = path
         self.name = name
@@ -77,31 +91,30 @@ class RecordNotFound(SpeedwagonException):
     pass
 
 
-class DirectoryType(typing.TypedDict):
-    type: str
-    value: str
+DirectoryType = typing.TypedDict("DirectoryType", {"type": str, "value": str})
 
-
-class JobArgs(typing.TypedDict):
-    directory: DirectoryType
-    api_server: str
-    path: str
-    enhancements: Dict[str, bool]
-
+JobArgs = typing.TypedDict(
+    "JobArgs", {
+        "directory": DirectoryType,
+        "api_server": str,
+        "path": str,
+        "enhancements": Dict[str, bool]
+    }
+)
 
 UserArgs = typing.TypedDict(
     "UserArgs",
     {
         "Input": str,
-        "Add 035 field": str,
-        "Add 955 field": str,
+        "Add 035 field": bool,
+        "Add 955 field": bool,
         "Identifier type": str,
     },
 )
 GETMARC_SERVER_URL_CONFIG = "Getmarc server url"
 
 
-class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
+class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow[UserArgs]):
     """Generate Marc XML files.
 
     .. versionchanged:: 0.1.5
@@ -127,7 +140,9 @@ class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
         "files from the Library."
     )
 
-    def job_options(self) -> List[AbsOutputOptionDataType]:
+    def job_options(self) -> List[
+        AbsOutputOptionDataType[speedwagon.workflow.UserDataType]
+    ]:
         """Request user options.
 
         User Options include:
@@ -137,22 +152,55 @@ class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
             * Add 035 field - Add additional 035 field to metadata
         """
         user_input = workflow.DirectorySelect(OPTION_USER_INPUT)
+        user_input.add_validation(validators.ExistsOnFileSystem())
+        user_input.add_validation(
+            validators.IsDirectory(),
+            condition=conditions.candidate_exists
+        )
 
         id_type_option = workflow.ChoiceSelection(IDENTIFIER_TYPE)
         id_type_option.placeholder_text = "Select an ID Type"
         for id_type in SUPPORTED_IDENTIFIERS:
             id_type_option.add_selection(id_type)
 
+        id_type_option.add_validation(
+            validators.CustomValidation[str](
+                query=(
+                    lambda candidate, job_options: (
+                        candidate in SUPPORTED_IDENTIFIERS
+                    )
+                ),
+                failure_message_function=(
+                    lambda candidate: f"Unknown Identifier type, {candidate}"
+                )
+            ),
+        )
+
         add_field_955 = workflow.BooleanSelect(OPTION_955_FIELD)
         add_field_955.value = True
 
         add_field_035 = workflow.BooleanSelect(OPTION_035_FIELD)
+
+        add_field_035.add_validation(
+            validators.CustomValidation[bool](
+                query=(
+                    lambda candidate, job_options: (
+                        True if candidate is False else
+                        job_options[OPTION_955_FIELD] is True
+                    )
+                ),
+                failure_message_function=(
+                    lambda *_: 'Add 035 field requires Add 955 field'
+                )
+
+            )
+        )
         add_field_035.value = True
 
         return [user_input, id_type_option, add_field_955, add_field_035]
 
     @classmethod
-    def filter_bib_id_folders(cls, item: os.DirEntry) -> bool:
+    def filter_bib_id_folders(cls, item: os.DirEntry[str]) -> bool:
         """Filter only folders with bibids.
 
         Args:
@@ -193,10 +241,12 @@ class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
 
     def discover_task_metadata(
         self,
-        initial_results: Sequence[Any],
-        additional_data,
-        **user_args: Union[str, bool],
-    ) -> List[Dict[str, Union[str, Collection[str]]]]:
+        initial_results: Sequence[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[Never]
+        ],
+        additional_data: Mapping[str, Never],  # pylint: disable=W0613
+        user_args: UserArgs
+    ) -> List[JobArgs]:
         """Create a list of metadata that the jobs will need in order to work.
 
         Args:
@@ -208,7 +258,6 @@ class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
             list of dictionaries of job metadata
 
         """
-        _user_args = cast(UserArgs, user_args)
         server_url = self.get_marc_server()
         if server_url is None:
             raise MissingConfiguration(
@@ -216,17 +265,17 @@ class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
                 key=GETMARC_SERVER_URL_CONFIG
             )
 
-        search_path = _user_args["Input"]
+        search_path = user_args["Input"]
         try:
-            jobs: List[Dict[str, Union[str, Collection[str]]]] = [
+            jobs: List[JobArgs] = [
                 {
                     "directory": {
                         "value": folder.name,
-                        "type": _user_args["Identifier type"],
+                        "type": user_args["Identifier type"],
                     },
                     "enhancements": {
-                        "955": _user_args.get(OPTION_955_FIELD, False),
-                        "035": _user_args.get(OPTION_035_FIELD, False),
+                        "955": user_args.get("Add 955 field", False),
+                        "035": user_args.get("Add 035 field", False),
                     },
                     "api_server": server_url,
                     "path": folder.path,
@@ -247,53 +296,10 @@ class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
             )
         return jobs
 
-    @staticmethod
-    def validate_user_options(**user_args: Dict[str, str]) -> bool:
-        """Make sure that the options the user provided is valid.
-
-        Args:
-            **user_args: Options provided by the user.
-
-        """
-        _user_args = cast(UserArgs, user_args)
-        option_validators = validators.OptionValidator()
-        option_validators.register_validator(
-            key=OPTION_USER_INPUT,
-            validator=validators.DirectoryValidation(key=OPTION_USER_INPUT),
-        )
-        option_validators.register_validator(
-            key="Input Required",
-            validator=RequiredValueValidation(key=OPTION_USER_INPUT),
-        )
-        option_validators.register_validator(
-            key="Identifier type Required",
-            validator=RequiredValueValidation(key=IDENTIFIER_TYPE),
-        )
-        option_validators.register_validator(
-            key="Match 035 and 955",
-            validator=DependentTruthyValueValidation(
-                key=OPTION_035_FIELD, required_true_keys=[OPTION_955_FIELD]
-            ),
-        )
-
-        invalid_messages = [
-            validation.explanation(**_user_args)
-            for validation in [
-                option_validators.get(OPTION_USER_INPUT),
-                option_validators.get("Input Required"),
-                option_validators.get("Identifier type Required"),
-                option_validators.get("Match 035 and 955"),
-            ]
-            if not validation.is_valid(**_user_args)
-        ]
-        if invalid_messages:
-            raise ValueError("\n".join(invalid_messages))
-        return True
-
     def create_new_task(
         self,
         task_builder: "speedwagon.tasks.TaskBuilder",
-        **job_args: Union[str, Dict[str, Union[str, bool]]],
+        job_args: Union[str, Dict[str, Union[str, bool]]],
     ) -> None:
         """Create the task to be run.
 
@@ -342,7 +348,9 @@ class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
     @classmethod
     @reports.add_report_borders
     def generate_report(
-        cls, results: List[speedwagon.tasks.Result], **user_args
+        cls,
+        results: List[speedwagon.tasks.Result[MarcGeneratorTaskReport]],
+        user_args: UserArgs  # pylint: disable=unused-argument
     ) -> Optional[str]:
         """Generate a simple home-readable report from the job results.
 
@@ -382,7 +390,7 @@ class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
     ) -> Tuple[str, Union[str, None]]:
         directory = job_args["directory"]
         subdirectory = directory["value"]
-        regex_patterns: Dict[str, re.Pattern] = {
+        regex_patterns: Dict[str, re.Pattern[str]] = {
             "MMS ID": MMSID_PATTERN,
             "Bibid": BIBID_PATTERN,
         }
@@ -400,7 +408,7 @@ class GenerateMarcXMLFilesWorkflow(speedwagon.Workflow):
         results = match.groupdict()
         return results["identifier"], results.get("volume")
 
-    def workflow_options(self) -> List[AbsOutputOptionDataType]:
+    def workflow_options(self) -> List[AbsOutputOptionDataType[str]]:
         """Set the settings for get marc workflow.
 
         This needs the getmarc server url.
@@ -442,133 +450,6 @@ class AbsMarcFileStrategy(abc.ABC):
         record = requests.get(url)
         record.raise_for_status()
         return record.text
-
-
-class DependentTruthyValueValidation(validators.AbsOptionValidator):
-    """Validate depending optional values are checked in right order."""
-
-    def __init__(self, key: str, required_true_keys: List[str]) -> None:
-        """Create a new validation object.
-
-        Args:
-            key: Optional value, that requires the other conditions to be true.
-            required_true_keys:
-                Keys that also have to be true for the key argument to be also
-                    true and valid.
-        """
-        super().__init__()
-        self.key = key
-        self.required_true_keys = required_true_keys
-
-    @staticmethod
-    def _has_required_key(
-        user_data: Dict[str, Union[str, bool]], key: str
-    ) -> bool:
-        return key not in user_data
-
-    @staticmethod
-    def _requirement_is_also_true(key: bool, dependents: List[bool]) -> bool:
-        # If the first part is false, there is no reason to check the rest
-        if not key:
-            return True
-
-        if not all(dependents):
-            return False
-        return True
-
-    def is_valid(self, **user_data: Union[str, bool]) -> bool:
-        """Check if the user data is valid."""
-        for required_key in [OPTION_955_FIELD, OPTION_035_FIELD]:
-            if self._has_required_key(user_data, required_key):
-                return False
-
-        return (
-            self._requirement_is_also_true(
-                bool(user_data[OPTION_035_FIELD]),
-                [bool(user_data[OPTION_955_FIELD])],
-            )
-            is not False
-        )
-
-    def explanation(self, **user_data: Union[str, bool]) -> str:
-        """Get reason for is_valid.
-
-        Args:
-            **user_data: Options provided by the user.
-
-        Returns:
-            returns a message explaining why something isn't valid, otherwise
-                produce the message "ok"
-        """
-        if (
-            self._requirement_is_also_true(
-                bool(user_data[OPTION_035_FIELD]),
-                [bool(user_data[OPTION_955_FIELD])],
-            )
-            is False
-        ):
-            return "Add 035 field requires Add 955 field"
-        return "ok"
-
-
-class RequiredValueValidation(validators.AbsOptionValidator):
-    """Make sure the value is ignored."""
-
-    def __init__(self, key: str) -> None:
-        """Check if the key is not empty.
-
-        Args:
-            key: Key to check is being used
-        """
-        super().__init__()
-        self.key = key
-
-    @staticmethod
-    def _has_key(user_data: Dict[str, Union[str, bool]], key: str) -> bool:
-        return key in user_data
-
-    @staticmethod
-    def _is_not_none(user_data: Dict[str, Union[str, bool]], key: str) -> bool:
-        return user_data[key] is not None
-
-    @staticmethod
-    def _not_empty_str(
-        user_data: Dict[str, Union[str, bool]], key: str
-    ) -> bool:
-        return str(user_data[key]).strip() != ""
-
-    def is_valid(self, **user_data: Union[str, bool]) -> bool:
-        """Check if the user data is valid."""
-        return all(
-            [
-                self._has_key(user_data, self.key),
-                self._is_not_none(user_data, self.key),
-                self._not_empty_str(user_data, self.key),
-            ]
-        )
-
-    def explanation(self, **user_data: Union[str, bool]) -> str:
-        """Get reason for is_valid.
-
-        Args:
-            **user_data: Options provided by the user.
-
-        Returns:
-            returns a message explaining why something isn't valid, otherwise
-                produce the message "ok"
-        """
-        if self._has_key(user_data, self.key) is False:
-            return f"Missing key {self.key}"
-
-        if any(
-            [
-                self._is_not_none(user_data, self.key) is False,
-                self._not_empty_str(user_data, self.key) is False,
-            ]
-        ):
-            return f"Missing {self.key}"
-
-        return "ok"
 
 
 class GetMarcBibId(AbsMarcFileStrategy):
@@ -629,7 +510,7 @@ def strip_volume(full_bib_id: str) -> int:
 SUPPORTED_IDENTIFIERS = {"MMS ID": GetMarcMMSID, "Bibid": GetMarcBibId}
 
 
-class MarcGeneratorTask(speedwagon.tasks.Subtask):
+class MarcGeneratorTask(speedwagon.tasks.Subtask[MarcGeneratorTaskReport]):
     """Task for generating the MARC xml file."""
 
     name = "Generate MARC File"
@@ -751,7 +632,7 @@ class MarcGeneratorTask(speedwagon.tasks.Subtask):
             raise SpeedwagonException from error
 
 
-class EnhancementTask(speedwagon.tasks.Subtask):
+class EnhancementTask(speedwagon.tasks.Subtask[None]):
     """Base class for enhancing xml file."""
 
     def __init__(self, xml_file: str) -> None:

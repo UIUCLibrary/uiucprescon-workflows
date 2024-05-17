@@ -4,12 +4,13 @@ import io
 import os
 import typing
 
-from typing import List, Any, Optional, Iterator, Dict
+from typing import List, Any, Optional, Iterator, Mapping, TypedDict
 import contextlib
 from uiucprescon import ocr
 
 import speedwagon
 import speedwagon.workflow
+from speedwagon import validators
 
 from speedwagon.exceptions import \
     MissingConfiguration, \
@@ -18,9 +19,6 @@ from speedwagon.exceptions import \
     JobCancelled
 
 TESSERACT_PATH_LABEL = "Tesseract data file location"
-
-if typing.TYPE_CHECKING:
-    from speedwagon.config import SettingsData
 
 __all__ = ['OCRWorkflow']
 
@@ -42,7 +40,29 @@ def path_contains_traineddata(path: str) -> bool:
     return False
 
 
-class OCRWorkflow(speedwagon.Workflow):
+ReportFormat = typing.TypedDict("ReportFormat", {"text": str, "source": str})
+UserArgs = TypedDict(
+    "UserArgs",
+    {
+        "Image File Type": str,
+        "Language": str,
+        "Path": str,
+    }
+
+)
+
+JobArgs = TypedDict(
+    "JobArgs",
+    {
+        "source_file_path": str,
+        "destination_path": str,
+        "output_file_name": str,
+        "lang_code": str,
+    }
+)
+
+
+class OCRWorkflow(speedwagon.Workflow[UserArgs]):
     """Optical Character Recognition workflow for Speedwagon."""
 
     name = "Generate OCR Files"
@@ -85,30 +105,18 @@ class OCRWorkflow(speedwagon.Workflow):
             "https://github.com/tesseract-ocr/tesseract/wiki/Data-Files\n"
         self.set_description(description)
 
-    @staticmethod
-    def _get_tessdata_dir(
-            args,
-            global_settings: SettingsData
-    ) -> Optional[str]:
-
-        tessdata_path = global_settings.get("tessdata")
-        if tessdata_path is None:
-            try:
-                tessdata_path = args[0].get('tessdata')
-            except IndexError:
-                pass
-        return typing.cast(Optional[str], tessdata_path)
-
     @classmethod
     def set_description(cls, text: str) -> None:
         """Change the workflow's description seen by the user."""
         cls.description = text
 
-    def discover_task_metadata(self,
-                               initial_results: List[
-                                   speedwagon.tasks.Result],
-                               additional_data: Dict[str, Any],
-                               **user_args: str) -> List[dict]:
+    def discover_task_metadata(
+        self,
+        initial_results: List[
+            speedwagon.tasks.Result[List[str]]],
+        additional_data: Mapping[str, Any],  # pylint: disable=unused-argument
+        user_args: UserArgs,
+    ) -> List[JobArgs]:
         """Create OCR task metadata for each file located."""
         tessdata_path = self.get_tesseract_path()
         if tessdata_path is None:
@@ -120,7 +128,7 @@ class OCRWorkflow(speedwagon.Workflow):
                 f'does not exist'
             )
 
-        new_tasks = []
+        new_tasks: List[JobArgs] = []
 
         for result in initial_results:
             for image_file in result.data:
@@ -135,7 +143,7 @@ class OCRWorkflow(speedwagon.Workflow):
                     )
 
                 base_name = os.path.splitext(os.path.basename(image_file))[0]
-                new_task = {
+                new_task: JobArgs = {
                     "source_file_path": image_file,
                     "destination_path": os.path.dirname(image_file),
                     "output_file_name": f"{base_name}.txt",
@@ -144,9 +152,11 @@ class OCRWorkflow(speedwagon.Workflow):
                 new_tasks.append(new_task)
         return new_tasks
 
-    def create_new_task(self,
-                        task_builder: "speedwagon.tasks.TaskBuilder",
-                        **job_args: str) -> None:
+    def create_new_task(
+        self,
+        task_builder: "speedwagon.tasks.TaskBuilder",
+        job_args: JobArgs
+    ) -> None:
         """Add ocr task for each file."""
         image_file = job_args["source_file_path"]
         destination_path = job_args["destination_path"]
@@ -166,9 +176,11 @@ class OCRWorkflow(speedwagon.Workflow):
             )
         task_builder.add_subtask(ocr_generation_task)
 
-    def initial_task(self,
-                     task_builder: "speedwagon.tasks.TaskBuilder",
-                     **user_args: str) -> None:
+    def initial_task(
+        self,
+        task_builder: "speedwagon.tasks.TaskBuilder",
+        user_args: UserArgs
+    ) -> None:
         """Create a task to locate appropriate files."""
         root = user_args['Path']
         file_type = user_args["Image File Type"]
@@ -187,8 +199,12 @@ class OCRWorkflow(speedwagon.Workflow):
         return cls.SUPPORTED_IMAGE_TYPES[file_type]
 
     def job_options(
-            self
-    ) -> List[speedwagon.workflow.AbsOutputOptionDataType]:
+        self
+    ) -> List[
+        speedwagon.workflow.AbsOutputOptionDataType[
+            speedwagon.workflow.UserDataType
+        ]
+    ]:
         """Request use settings for OCR job."""
         package_type = speedwagon.workflow.ChoiceSelection("Image File Type")
         package_type.required = True
@@ -215,7 +231,16 @@ class OCRWorkflow(speedwagon.Workflow):
                 continue
             language_type.add_selection(fullname)
 
-        package_root_option = speedwagon.workflow.DirectorySelect("Path")
+        package_root_option =\
+            speedwagon.workflow.DirectorySelect("Path", required=True)
+
+        package_root_option.add_validation(
+            validators.ExistsOnFileSystem()
+        )
+        package_root_option.add_validation(
+            validators.IsDirectory(),
+            condition=lambda candidate, _: candidate is not None
+        )
 
         return [
             package_type,
@@ -234,7 +259,7 @@ class OCRWorkflow(speedwagon.Workflow):
     def get_available_languages(path: str) -> Iterator[str]:
         """Get languages accessible based on the available data files."""
 
-        def filter_only_trainingdata(item: os.DirEntry) -> bool:
+        def filter_only_trainingdata(item: os.DirEntry[str]) -> bool:
             if not item.is_file():
                 return False
 
@@ -251,22 +276,12 @@ class OCRWorkflow(speedwagon.Workflow):
         for file in filter(filter_only_trainingdata, os.scandir(path)):
             yield os.path.splitext(file.name)[0]
 
-    @staticmethod
-    def validate_user_options(**user_args: str) -> bool:
-        """Validate use input paths."""
-        path = user_args["Path"]
-        if path is None:
-            raise ValueError("No path selected")
-        if not os.path.exists(path):
-            raise ValueError(f"Unable to locate {path}.")
-        if not os.path.isdir(path):
-            raise ValueError(f"Input not a valid directory {path}.")
-
-        return True
-
     @classmethod
-    def generate_report(cls, results: List[speedwagon.tasks.Result],
-                        **user_args) -> Optional[str]:
+    def generate_report(
+        cls,
+        results: List[speedwagon.tasks.Result[ReportFormat]],
+        user_args: UserArgs  # pylint: disable=unused-argument
+    ) -> Optional[str]:
         """Generate report for OCR files generated."""
         amount = len(cls._get_ocr_tasks(results))
 
@@ -281,11 +296,11 @@ class OCRWorkflow(speedwagon.Workflow):
 
     @staticmethod
     def _get_ocr_tasks(
-            results: List[speedwagon.tasks.Result]
-    ) -> List[speedwagon.tasks.Result]:
+            results: List[speedwagon.tasks.Result[ReportFormat]]
+    ) -> List[speedwagon.tasks.Result[ReportFormat]]:
 
         def filter_ocr_gen_tasks(
-                result: speedwagon.tasks.Result
+                result: speedwagon.tasks.Result[ReportFormat]
         ) -> bool:
             if result.source != GenerateOCRFileTask:
                 return False
@@ -303,7 +318,11 @@ class OCRWorkflow(speedwagon.Workflow):
 
     def workflow_options(
         self
-    ) -> List[speedwagon.workflow.AbsOutputOptionDataType]:
+    ) -> List[
+        speedwagon.workflow.AbsOutputOptionDataType[
+            speedwagon.workflow.UserDataType
+        ]
+    ]:
         """Set the settings for get marc workflow.
 
         This needs the path to the tesseract data.
@@ -320,7 +339,7 @@ class OCRWorkflow(speedwagon.Workflow):
         ]
 
 
-class FindImagesTask(speedwagon.tasks.Subtask):
+class FindImagesTask(speedwagon.tasks.Subtask[List[str]]):
     name = "Finding Images"
 
     def __init__(self, root: str, file_extension: str) -> None:
@@ -358,7 +377,7 @@ class FindImagesTask(speedwagon.tasks.Subtask):
         return True
 
 
-class GenerateOCRFileTask(speedwagon.tasks.Subtask):
+class GenerateOCRFileTask(speedwagon.tasks.Subtask[ReportFormat]):
     engine: Optional[ocr.Engine] = None
     name = "Optical character recognition"
 
@@ -387,15 +406,19 @@ class GenerateOCRFileTask(speedwagon.tasks.Subtask):
         cls.engine = ocr.Engine(path)
         assert cls.engine is not None
 
+    def write_data(self, data: str, file_handle: io.TextIOWrapper) -> None:
+        file_handle.write(data)
+
     def work(self) -> bool:
         resulting_text = self.read_image(self._source, self._lang)
 
         # Generate a text file from the text data extracted from the image
         self.log(f"Writing to {self._output_text_file}")
         with open(self._output_text_file, "w", encoding="utf8") as write_file:
-            write_file.write(resulting_text)
+            self.write_data(resulting_text, write_file)
+            # write_file.write(resulting_text)
 
-        result = {
+        result: ReportFormat = {
             "text": resulting_text,
             "source": self._source
         }
