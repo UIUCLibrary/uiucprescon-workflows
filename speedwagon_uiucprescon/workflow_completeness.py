@@ -1,4 +1,5 @@
 """Workflow for validating package completeness for HathiTrust."""
+from __future__ import annotations
 
 import logging
 import os
@@ -6,7 +7,7 @@ import re
 import sys
 import typing
 from typing import Mapping, Any, Dict, List, Type, Union, Optional, \
-    Iterator, Tuple
+    Iterator, Tuple, TypedDict
 import itertools
 
 import hathi_validate
@@ -17,14 +18,36 @@ from hathi_validate import process as validate_process
 from hathi_validate import validator
 
 import speedwagon
+from speedwagon import validators
 import speedwagon.tasks.tasks
+
 
 __all__ = ['CompletenessWorkflow']
 
 from speedwagon import workflow, utils
 
+UserArgs = TypedDict(
+    'UserArgs',
+    {
+        "Source": str,
+        "Check for page_data in meta.yml": bool,
+        "Check ALTO OCR xml files": bool,
+        "Check OCR xml files are utf-8": bool,
+    }
+)
 
-class CompletenessWorkflow(speedwagon.job.Workflow):
+JobArgs = TypedDict(
+    "JobArgs",
+    {
+        "package_path": str,
+        "check_page_data": bool,
+        "check_ocr_data": bool,
+        "_check_ocr_utf8": bool,
+    }
+)
+
+
+class CompletenessWorkflow(speedwagon.job.Workflow[UserArgs]):
     """Workflow for testing package completeness."""
 
     name = "Verify HathiTrust Package Completeness"
@@ -40,9 +63,13 @@ class CompletenessWorkflow(speedwagon.job.Workflow):
                   "valid. (This workflow provides console feedback, but " \
                   "doesn’t write new files as output)."
 
-    def job_options(self) -> List[workflow.AbsOutputOptionDataType]:
+    def job_options(
+        self
+    ) -> List[workflow.AbsOutputOptionDataType[workflow.UserDataType]]:
         """Request user settings for which checks to be performed."""
         source = workflow.DirectorySelect("Source")
+        source.add_validation(validators.ExistsOnFileSystem())
+        source.add_validation(validators.IsDirectory())
 
         check_page_data_option = \
             workflow.BooleanSelect("Check for page_data in meta.yml")
@@ -62,15 +89,18 @@ class CompletenessWorkflow(speedwagon.job.Workflow):
             check_ocr_utf8_option
         ]
 
-    def discover_task_metadata(self, initial_results: List[
-        speedwagon.tasks.tasks.Result],
-                               additional_data: Mapping[str, str],
-                               **user_args: Union[str, bool]
-                               ) -> List[Dict[str, Union[str, bool]]]:
+    def discover_task_metadata(
+        self,
+        initial_results: List[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[str]
+        ],
+        additional_data: Mapping[str, str],  # pylint: disable=unused-argument
+        user_args: UserArgs
+    ) -> List[JobArgs]:
         """Create task metadata based on user settings."""
-        jobs = []
+        jobs: List[JobArgs] = []
 
-        def directory_only_filter(item: 'os.DirEntry[str]') -> bool:
+        def directory_only_filter(item: os.DirEntry[str]) -> bool:
             if not item.is_dir():
                 return False
 
@@ -98,18 +128,17 @@ class CompletenessWorkflow(speedwagon.job.Workflow):
             )
         return jobs
 
-    def create_new_task(self,
-                        task_builder: "speedwagon.tasks.tasks.TaskBuilder",
-                        **job_args: Union[str, bool]) -> None:
+    def create_new_task(
+        self,
+        task_builder: speedwagon.tasks.TaskBuilder,
+        job_args: JobArgs
+    ) -> None:
         """Create validation tasks based on user settings."""
-        package_path = \
-            os.path.normcase(typing.cast(str, job_args['package_path']))
+        package_path = os.path.normcase(job_args['package_path'])
 
-        request_ocr_validation = \
-            typing.cast(bool, job_args['check_ocr_data'])
+        request_ocr_validation = job_args['check_ocr_data']
 
-        request_ocr_utf8_validation = \
-            typing.cast(bool, job_args['_check_ocr_utf8'])
+        request_ocr_utf8_validation = job_args['_check_ocr_utf8']
 
         task_builder.add_subtask(
             subtask=PackageNamingConventionTask(package_path))
@@ -136,43 +165,41 @@ class CompletenessWorkflow(speedwagon.job.Workflow):
                 subtask=ValidateOCFilesUTF8Task(package_path))
 
     @classmethod
-    def generate_report(cls, results: List[speedwagon.tasks.tasks.Result],
-                        **user_args: Union[str, bool]) -> Optional[str]:
+    def generate_report(
+        cls,
+        results: List[speedwagon.tasks.Result[List[hathi_result.Result]]],
+        user_args: UserArgs  # pylint: disable=unused-argument
+    ) -> Optional[str]:
         """Generate a completeness report based on results."""
         report_builder = CompletenessReportBuilder()
 
         results_sorted = sorted(results, key=lambda x: x.source.__name__)
         _result_grouped: Iterator[
-            Tuple[Any, Iterator[speedwagon.tasks.tasks.Result]]
+            Tuple[
+                Any,
+                Iterator[
+                    speedwagon.tasks.Result[List[hathi_result.Result]]
+                ]
+            ]
         ] = itertools.groupby(results_sorted, lambda x: x.source)
         report_builder.results = {
             key: [i.data for i in group] for key, group in _result_grouped
         }
         return report_builder.build_report()
 
-    def initial_task(self, task_builder: "speedwagon.tasks.tasks.TaskBuilder",
-                     **user_args: str) -> None:
+    def initial_task(
+        self,
+        task_builder: "speedwagon.tasks.tasks.TaskBuilder",
+        user_args: UserArgs
+    ) -> None:
         """Create generate manifest task."""
         new_task = HathiManifestGenerationTask(batch_root=user_args['Source'])
         task_builder.add_subtask(subtask=new_task)
 
-    @staticmethod
-    def validate_user_options(*args: str, **kwargs: str) -> bool:
-        """Verify user option for source is valid."""
-        source = kwargs.get("Source")
-        if not source:
-            raise ValueError("Source is missing a value")
-        if not os.path.exists(source) or not os.path.isdir(source):
-            raise ValueError("Invalid source")
-        return True
 
-
-class CompletenessSubTask(speedwagon.tasks.Subtask):
-    def work(self) -> bool:
-        raise NotImplementedError()
-
-
-class HathiCheckMissingPackageFilesTask(CompletenessSubTask):
+class HathiCheckMissingPackageFilesTask(
+    speedwagon.tasks.Subtask[List[hathi_result.Result]]
+):
     name = "Check for Missing Package Files"
 
     def __init__(self, package_path: str) -> None:
@@ -201,7 +228,11 @@ class HathiCheckMissingPackageFilesTask(CompletenessSubTask):
         return True
 
 
-class HathiCheckMissingComponentsTask(CompletenessSubTask):
+class HathiCheckMissingComponentsTask(
+    speedwagon.tasks.Subtask[
+        Union[List[hathi_result.Result], hathi_result.ResultSummary]
+    ]
+):
     name = "Checking for missing components"
 
     def __init__(self, check_ocr: bool, package_path: str) -> None:
@@ -213,7 +244,7 @@ class HathiCheckMissingComponentsTask(CompletenessSubTask):
         return f"Checking for missing components in {self.package_path}"
 
     def work(self) -> bool:
-        errors: List[hathi_result.Result] = []
+        errors: Union[List[hathi_result.Result]] = []
         extensions = [".txt", ".jp2"]
         my_logger = logging.getLogger(hathi_validate.__name__)
         my_logger.setLevel(logging.INFO)
@@ -263,7 +294,13 @@ class HathiCheckMissingComponentsTask(CompletenessSubTask):
         return True
 
 
-class ValidateExtraSubdirectoriesTask(CompletenessSubTask):
+class ValidateExtraSubdirectoriesTask(
+    speedwagon.tasks.Subtask[
+        Union[
+            List[hathi_result.Result],
+            hathi_result.ResultSummary]
+    ]
+):
     name = "Validating for Extra Subdirectories"
 
     def __init__(self, package_path: str) -> None:
@@ -310,7 +347,13 @@ class ValidateExtraSubdirectoriesTask(CompletenessSubTask):
         return True
 
 
-class ValidateChecksumsTask(CompletenessSubTask):
+class ValidateChecksumsTask(
+    speedwagon.tasks.Subtask[
+        Union[
+            List[hathi_result.Result],
+            hathi_result.ResultSummary]
+    ]
+):
     name = "Validate Checksums"
 
     def __init__(self, package_path: str) -> None:
@@ -381,7 +424,13 @@ class ValidateChecksumsTask(CompletenessSubTask):
         return True
 
 
-class ValidateMarcTask(CompletenessSubTask):
+class ValidateMarcTask(
+    speedwagon.tasks.Subtask[
+        Union[
+            List[hathi_result.Result],
+            hathi_result.ResultSummary]
+    ]
+):
     name = "Validating Marc"
 
     def __init__(self, package_path: str) -> None:
@@ -436,7 +485,13 @@ class ValidateMarcTask(CompletenessSubTask):
         return True
 
 
-class ValidateOCRFilesTask(CompletenessSubTask):
+class ValidateOCRFilesTask(
+    speedwagon.tasks.Subtask[
+        Union[
+            List[hathi_result.Result],
+            hathi_result.ResultSummary]
+    ]
+):
     name = "Validating OCR Files"
 
     def __init__(self, package_path: str) -> None:
@@ -482,7 +537,9 @@ class ValidateOCRFilesTask(CompletenessSubTask):
         return True
 
 
-class ValidateYMLTask(CompletenessSubTask):
+class ValidateYMLTask(
+    speedwagon.tasks.Subtask[List[hathi_result.Result]]
+):
     name = "Validating YML"
 
     def __init__(self, package_path: str) -> None:
@@ -530,7 +587,9 @@ class ValidateYMLTask(CompletenessSubTask):
         return True
 
 
-class ValidateOCFilesUTF8Task(CompletenessSubTask):
+class ValidateOCFilesUTF8Task(
+    speedwagon.tasks.Subtask[List[hathi_result.Result]]
+):
     name = "Validate OCR Files UTF8 Encoding"
 
     def __init__(self, package_path: str) -> None:
@@ -578,7 +637,9 @@ class ValidateOCFilesUTF8Task(CompletenessSubTask):
         return True
 
 
-class HathiManifestGenerationTask(CompletenessSubTask):
+class HathiManifestGenerationTask(
+    speedwagon.tasks.Subtask[str]
+):
     name = 'Hathi Manifest Generation'
 
     def __init__(self, batch_root: str) -> None:
@@ -620,7 +681,9 @@ class HathiManifestGenerationTask(CompletenessSubTask):
         return True
 
 
-class PackageNamingConventionTask(CompletenessSubTask):
+class PackageNamingConventionTask(
+    speedwagon.tasks.Subtask[List[hathi_result.Result]]
+):
     name = "Package Naming Convention"
     FILE_NAMING_CONVENTION_REGEX = \
         "^[0-9]*([m|v|i][0-9]{2,})?(_[1-9])?([m|v|i][0-9])?$"
@@ -670,10 +733,11 @@ class CompletenessReportBuilder:
         self.line_length = 70
 
         self.results: Dict[
-            Type['CompletenessSubTask'], List[List[hathi_result.Result]]
+            Type[speedwagon.tasks.Subtask],
+            List[List[hathi_result.Result]]
         ] = {}
 
-        self._tasks_performed: List[Type[CompletenessSubTask]] = [
+        self._tasks_performed: List[Type[speedwagon.tasks.Subtask]] = [
             HathiCheckMissingPackageFilesTask,
             HathiCheckMissingComponentsTask,
             ValidateExtraSubdirectoriesTask,
@@ -690,11 +754,14 @@ class CompletenessReportBuilder:
                                                 self.line_length)
 
     @classmethod
-    def _get_result(cls,
-                    results_grouped: Dict[Type["CompletenessSubTask"],
-                                          List[List[hathi_result.Result]]],
-                    key: Type["CompletenessSubTask"]
-                    ) -> List[hathi_result.Result]:
+    def _get_result(
+            cls,
+            results_grouped: Dict[
+                Type[speedwagon.tasks.Subtask[List[hathi_result.Result]]],
+                List[List[hathi_result.Result]]
+            ],
+            key: Type[speedwagon.tasks.Subtask[List[hathi_result.Result]]]
+    ) -> List[hathi_result.Result]:
 
         results: List[hathi_result.Result] = []
 

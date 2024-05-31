@@ -1,1 +1,10 @@
-speedwagon[qt]==0.4.0a2
+speedwagon[qt]==0.4.0b5
+HathiZip>=0.1.10
+HathiValidate>=0.3.8
+pyhathiprep>=0.1.10
+uiucprescon.imagevalidate>=0.1.9
+uiucprescon.ocr>=0.1.4
+uiucprescon.packager[kdu]>=0.2.15
+uiucprescon.images
+py3exiv2bind>=0.1.11
+pykdu-compress>=0.1.9

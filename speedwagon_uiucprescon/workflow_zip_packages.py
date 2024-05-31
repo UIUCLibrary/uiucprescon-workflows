@@ -1,22 +1,42 @@
 """Workflow for creating zip archives."""
-
+from __future__ import annotations
 import logging
 
 import os
-from typing import List, Any, Optional
+from typing import List, TYPE_CHECKING, Optional, Mapping, TypedDict
 
 import hathizip.process
 import hathizip
 
 import speedwagon
-from speedwagon import reports, workflow, utils
+from speedwagon import reports, workflow, utils, validators
 from speedwagon.job import Workflow
 
+if TYPE_CHECKING:
+    import sys
+    if sys.version_info >= (3, 11):
+        from typing import Never
+    else:
+        from typing_extensions import Never
 
 __all__ = ['ZipPackagesWorkflow']
 
 
-class ZipPackagesWorkflow(Workflow):
+JobArgs = TypedDict("JobArgs", {
+    "source_path": str,
+    "destination_path": str,
+})
+
+UserArgs = TypedDict(
+    "UserArgs",
+    {
+        "Source": str,
+        "Output": str,
+    }
+)
+
+
+class ZipPackagesWorkflow(Workflow[UserArgs]):
     """Zip Package workflow for Speedwagon."""
 
     name = "Zip Packages"
@@ -32,48 +52,55 @@ class ZipPackagesWorkflow(Workflow):
 
     active = True
 
-    def discover_task_metadata(self,
-                               initial_results: List[Any],
-                               additional_data,
-                               **user_args: str) -> List[dict]:
+    def discover_task_metadata(
+        self,
+        initial_results: List[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[Never]
+        ],
+        additional_data: Mapping[str, Never],  # pylint: disable=W0613
+        user_args: UserArgs,
+    ) -> List[JobArgs]:
         """Generate metadata need by task."""
         source = user_args["Source"]
         output = user_args["Output"]
 
-        job_requests = []
+        job_requests: List[JobArgs] = []
         for dir_ in filter(lambda x: x.is_dir(), os.scandir(source)):
-            job_requests.append({"source_path": dir_.path,
-                                 "destination_path": output,
-                                 }
-                                )
+            job_requests.append(
+                JobArgs(
+                    source_path=dir_.path,
+                    destination_path=output
+                )
+            )
         return job_requests
 
-    @staticmethod
-    def validate_user_options(**user_args: str) -> bool:
-        """Validate user settings for source and output paths."""
-        source = user_args["Source"]
-        output = user_args["Output"]
-        if not os.path.exists(source) or not os.path.isdir(source):
-            raise ValueError("Invalid source")
-        if not os.path.exists(output) or not os.path.isdir(output):
-            raise ValueError("Invalid output")
-
-        return True
-
-    def job_options(self) -> List[workflow.AbsOutputOptionDataType]:
+    def job_options(self) -> List[
+        workflow.AbsOutputOptionDataType[workflow.UserDataType]
+    ]:
         """Request user settings for source and output paths."""
         source = workflow.DirectorySelect("Source")
-        output = workflow.DirectorySelect("Output")
+        source.add_validation(validators.ExistsOnFileSystem())
 
-        return [
-            source,
-            output
-        ]
+        source.add_validation(
+            validators.IsDirectory(
+                message_template="Invalid source. {} is not a directory"
+            )
+        )
+
+        output = workflow.DirectorySelect("Output")
+        output.add_validation(validators.ExistsOnFileSystem())
+
+        output.add_validation(
+            validators.IsDirectory(
+                message_template="Invalid output. {} is not a directory"
+            )
+        )
+        return [source, output]
 
     def create_new_task(
-            self,
-            task_builder: "speedwagon.tasks.TaskBuilder",
-            **job_args
+        self,
+        task_builder: "speedwagon.tasks.TaskBuilder",
+        job_args: JobArgs
     ) -> None:
         """Create a Zip task."""
         new_task = ZipTask(**job_args)
@@ -81,8 +108,11 @@ class ZipPackagesWorkflow(Workflow):
 
     @classmethod
     @reports.add_report_borders
-    def generate_report(cls, results: List[speedwagon.tasks.Result],
-                        **user_args: str) -> Optional[str]:
+    def generate_report(
+        cls,
+        results: List[speedwagon.tasks.Result[str]],  # pylint: disable=W0613
+        user_args: UserArgs
+    ) -> Optional[str]:
         """Generate report for all files added to zip file."""
         output = user_args.get("Output")
         if output:
@@ -91,15 +121,13 @@ class ZipPackagesWorkflow(Workflow):
         return "Zipping complete. All files written to output location"
 
 
-class ZipTask(speedwagon.tasks.Subtask):
+class ZipTask(speedwagon.tasks.Subtask[str]):
     name = "Zip Files"
 
     def __init__(
             self,
             source_path: str,
             destination_path: str,
-            *args,
-            **kwargs
     ) -> None:
 
         super().__init__()

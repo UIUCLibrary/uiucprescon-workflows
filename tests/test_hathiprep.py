@@ -6,7 +6,8 @@ import pytest
 import speedwagon
 from speedwagon.frontend import interaction
 from speedwagon_uiucprescon import workflow_hathiprep, tasks
-
+from uiucprescon.packager.common import Metadata
+from uiucprescon.packager.package import collection
 
 @pytest.mark.parametrize("index,label", [
     (0, "input"),
@@ -29,7 +30,7 @@ def test_initial_task_creates_task():
     mock_builder = Mock()
     workflow.initial_task(
         task_builder=mock_builder,
-        **user_args
+        user_args=user_args
     )
 
     input_arg = user_args['input']
@@ -38,6 +39,7 @@ def test_initial_task_creates_task():
         mock_builder.add_subtask.call_args_list[0][0][0]._root == input_arg
 
 
+@pytest.mark.skip("todo: update to use table_data_editor instead")
 def test_get_additional_info_opens_dialog_box(monkeypatch):
     workflow = workflow_hathiprep.HathiPrepWorkflow()
     user_args = {
@@ -72,7 +74,7 @@ def test_get_additional_info_opens_dialog_box(monkeypatch):
         user_request_factory = Mock(
             spec=interaction.UserRequestFactory,
         )
-        user_request_factory.package_browser.return_value = \
+        user_request_factory.table_data_editor.return_value = \
             mock_package_browser
 
         extra_info = workflow.get_additional_info(
@@ -105,7 +107,7 @@ def test_discover_task_metadata_one_per_package(
     new_task_md = workflow.discover_task_metadata(
         initial_results=initial_results,
         additional_data=additional_data,
-        **user_options
+        user_args=user_options
     )
     assert len(new_task_md) == number_of_fake_packages
 
@@ -120,7 +122,7 @@ def test_create_new_task_generates_subtask(unconfigured_workflow):
     }
     workflow.create_new_task(
         mock_builder,
-        **job_args
+        job_args
     )
     assert mock_builder.add_subtask.called is True
 
@@ -138,7 +140,7 @@ def test_generate_report_creates_a_report(unconfigured_workflow):
             data={"package_id": "123"}
         ),
     ]
-    message = workflow.generate_report(results, **job_args)
+    message = workflow.generate_report(results, job_args)
     assert "Report" in message
 
 
@@ -158,3 +160,78 @@ def test_find_packages_task(monkeypatch):
         mp.setattr(os, "scandir", mock_scandir)
         assert task.work() is True
     assert len(task.results) == 20
+
+
+def test_get_additional_info_packages(monkeypatch):
+    workflow = workflow_hathiprep.HathiPrepWorkflow()
+    user_args = {
+        "input": "./some_real_source_folder",
+        "Image File Type": "JPEG 2000",
+    }
+    def mock_scandir(path):
+        for i_number in range(20):
+            file_mock = Mock()
+            file_mock.is_dir = Mock(return_value=True)
+            file_mock.name = f"99423682912205899-{str(i_number).zfill(8)}"
+            yield file_mock
+
+    with monkeypatch.context() as mp:
+        mp.setattr(os, "scandir", mock_scandir)
+        table_data_editor = Mock(name="table_data_editor")
+
+        table_data_editor.get_user_response = Mock(
+            return_value={"packages"}
+        )
+
+        user_request_factory = Mock(
+            spec=interaction.UserRequestFactory,
+        )
+        user_request_factory.table_data_editor.return_value = (
+            table_data_editor
+        )
+
+        extra_info = workflow.get_additional_info(
+            user_request_factory, options=user_args, pretask_results=["something"]
+        )
+        assert "packages" in extra_info, '"packages" key not found in extra_info'
+
+
+def test_data_gathering_callback():
+    package_1 = MagicMock(
+        metadata={
+            Metadata.TITLE_PAGE: "image1.jp2",
+            Metadata.ID: "image1",
+            Metadata.PATH: "some/path",
+        },
+    )
+    package_1.mock_add_spec(collection.Package)
+    item_1 = MagicMock(
+        name="item1",
+        instantiations={
+            "access": Mock(
+                name="instance",
+                files=['image1.jp2']
+            )
+        }
+    )
+    item_2 = MagicMock(
+        name="item2",
+        instantiations={
+            "access": Mock(
+                name="instance",
+                files=['image2.jp2']
+            )
+        }
+    )
+    package_1.__iter__.return_value = [
+        item_1, item_2
+    ]
+
+    pretask_results = [
+        Mock(data=[
+            package_1
+        ])
+    ]
+    rows = workflow_hathiprep.data_gathering_callback([], pretask_results)
+    assert len(rows) == 1
+    assert rows[0][1].possible_values == ['image1.jp2', 'image2.jp2']

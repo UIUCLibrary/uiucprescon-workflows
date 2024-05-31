@@ -1,20 +1,40 @@
 """Workflow for converting CaptureOne images to Digital Library format."""
+from __future__ import annotations
 
 import abc
 import itertools
 import os
 import sys
 import typing
-from typing import List, Dict, Optional
+from typing import List, Optional, Tuple, Mapping
 
 import pykdu_compress
 
 import speedwagon
 import speedwagon.workflow
+from speedwagon.workflow import AbsOutputOptionDataType, UserDataType
 from speedwagon import reports
 from speedwagon.job import Workflow
+from speedwagon import validators
+
+if typing.TYPE_CHECKING:
+    if sys.version_info >= (3, 11):
+        from typing import Never
+    else:
+        from typing_extensions import Never
 
 __all__ = ['ConvertTiffPreservationToDLJp2Workflow']
+
+
+PackageImageConverterTaskReport = typing.TypedDict(
+    "PackageImageConverterTaskReport",
+    {
+        "output_filename": Optional[str],
+        "source_filename": str,
+        "success": bool,
+    }
+
+)
 
 
 class AbsProcessStrategy(metaclass=abc.ABCMeta):
@@ -25,7 +45,7 @@ class AbsProcessStrategy(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def process(self, source_file: str, destination_path: str) -> None:
-        pass
+        """Process."""
 
 
 class ProcessFile:
@@ -44,7 +64,7 @@ class ProcessFile:
 
 
 class ProcessingException(Exception):
-    pass
+    """Processing Exception."""
 
 
 class ConvertFile(AbsProcessStrategy):
@@ -68,7 +88,17 @@ class ConvertFile(AbsProcessStrategy):
         self.status = f"Generated {output_file_path}"
 
 
-class ConvertTiffPreservationToDLJp2Workflow(Workflow):
+UserOptions = typing.TypedDict("UserOptions", {"Input": str})
+JobArgs = typing.TypedDict(
+    "JobArgs",
+    {
+        "source_file": str,
+        "output_path": str,
+    }
+)
+
+
+class ConvertTiffPreservationToDLJp2Workflow(Workflow[UserOptions]):
     """Package conversion workflow for Speedwagon."""
 
     name = "Convert CaptureOne Preservation TIFF to Digital Library Access JP2"
@@ -78,14 +108,16 @@ class ConvertTiffPreservationToDLJp2Workflow(Workflow):
                   'files named the same as the TIFFs.'
     active = True
 
-    def discover_task_metadata(self,
-                               initial_results: List[
-                                   speedwagon.tasks.Result],
-                               additional_data: Dict[str, str],
-                               **user_args: str
-                               ) -> List[Dict[str, str]]:
+    def discover_task_metadata(
+        self,
+        initial_results: List[  # pylint: disable=unused-argument
+            speedwagon.tasks.Result[Never]
+        ],
+        additional_data: Mapping[str, str],  # pylint: disable=unused-argument
+        user_args: UserOptions
+    ) -> List[JobArgs]:
         """Generate task metadata for converting file packages."""
-        jobs = []
+        jobs: List[JobArgs] = []
         source_input = user_args["Input"]
 
         dest = os.path.abspath(
@@ -94,7 +126,7 @@ class ConvertTiffPreservationToDLJp2Workflow(Workflow):
                          "access")
         )
 
-        def filter_only_tif_files(item: os.DirEntry) -> bool:
+        def filter_only_tif_files(item: os.DirEntry[str]) -> bool:
             if not item.is_file():
                 return False
 
@@ -114,17 +146,38 @@ class ConvertTiffPreservationToDLJp2Workflow(Workflow):
 
         return jobs
 
-    def job_options(
-            self
-    ) -> List[speedwagon.workflow.AbsOutputOptionDataType]:
+    def job_options(self) -> List[AbsOutputOptionDataType[UserDataType]]:
         """Request use settings for source path."""
-        return [
-            speedwagon.workflow.DirectorySelect("Input"),
-        ]
+        input_directory = speedwagon.workflow.DirectorySelect("Input")
+        input_directory.add_validation(validators.ExistsOnFileSystem())
 
-    def create_new_task(self,
-                        task_builder: "speedwagon.tasks.TaskBuilder",
-                        **job_args: str) -> None:
+        input_directory.add_validation(validators.IsDirectory())
+
+        input_directory.add_validation(
+            validators.CustomValidation[str](
+                query=lambda candidate, job_args: (
+                    typing.cast(str, candidate).endswith("preservation")
+                ),
+                failure_message_function=(
+                    lambda _: "Invalid value in input: Not a preservation "
+                              "directory"
+                )
+            ),
+            condition=lambda candidate, _: all(
+                [
+                    os.path.exists(candidate),
+                    os.path.isdir(candidate)
+                ]
+            )
+        )
+
+        return [input_directory]
+
+    def create_new_task(
+        self,
+        task_builder: speedwagon.tasks.TaskBuilder,
+        job_args: JobArgs
+    ) -> None:
         """Create task to convert file package."""
         source_file = job_args['source_file']
         dest_path = job_args['output_path']
@@ -134,30 +187,15 @@ class ConvertTiffPreservationToDLJp2Workflow(Workflow):
         )
         task_builder.add_subtask(new_task)
 
-    @staticmethod
-    def validate_user_options(**user_args: str) -> bool:
-        """Validate input path option."""
-        input_value = user_args["Input"]
-
-        if input_value is None:
-            raise ValueError("Input is required")
-
-        if not os.path.exists(input_value):
-            raise ValueError("Invalid value in input")
-
-        if not os.path.isdir(input_value):
-            raise ValueError("Invalid value in input: Not a directory")
-
-        if not input_value.endswith("preservation"):
-            raise ValueError("Invalid value in input: Not a preservation "
-                             "directory")
-        return True
-
     @classmethod
     @reports.add_report_borders
-    def generate_report(cls,
-                        results: List[speedwagon.tasks.Result],
-                        **user_args: str) -> str:
+    def generate_report(
+        cls,
+        results: List[
+            speedwagon.tasks.Result[PackageImageConverterTaskReport]
+        ],
+        user_args: UserOptions  # pylint: disable=unused-argument
+    ) -> str:
         """Generate a report for number of successful files created."""
         failure = False
         dest = None
@@ -167,6 +205,8 @@ class ConvertTiffPreservationToDLJp2Workflow(Workflow):
         dest_paths = set()
         for result in successful_results:
             new_file = result.data["output_filename"]
+            if new_file is None:
+                raise KeyError("missing output_filename from results")
             dest_paths.add(os.path.dirname(new_file))
 
         if len(dest_paths) == 1:
@@ -189,8 +229,21 @@ class ConvertTiffPreservationToDLJp2Workflow(Workflow):
         return report
 
     @classmethod
-    def _partition_results(cls, results: List[speedwagon.tasks.Result]):
-        def successful(res) -> bool:
+    def _partition_results(
+        cls,
+        results: List[speedwagon.tasks.Result[PackageImageConverterTaskReport]]
+    ) -> Tuple[
+         typing.Iterator[
+             speedwagon.tasks.Result[PackageImageConverterTaskReport]
+         ],
+         typing.Iterator[
+             speedwagon.tasks.Result[PackageImageConverterTaskReport]
+         ]
+    ]:
+
+        def successful(
+            res: speedwagon.tasks.Result[PackageImageConverterTaskReport]
+        ) -> bool:
             if not res.data["success"]:
                 return False
             return True
@@ -201,7 +254,9 @@ class ConvertTiffPreservationToDLJp2Workflow(Workflow):
             filter(successful, iterator_2)
 
 
-class PackageImageConverterTask(speedwagon.tasks.Subtask):
+class PackageImageConverterTask(
+    speedwagon.tasks.Subtask[PackageImageConverterTaskReport]
+):
     name = "Package Image Convert"
 
     def __init__(self, source_file_path: str, dest_path: str) -> None:
@@ -229,7 +284,6 @@ class PackageImageConverterTask(speedwagon.tasks.Subtask):
         except ProcessingException as error:
             print(error, file=sys.stderr)
             success = False
-
         self.set_results(
             {
                 "output_filename": process_task.output,

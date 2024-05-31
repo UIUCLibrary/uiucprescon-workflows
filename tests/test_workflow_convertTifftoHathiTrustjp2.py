@@ -43,7 +43,7 @@ class TestConvertTiffToHathiJp2Workflow:
         tasks_metadata = workflow.discover_task_metadata(
             initial_results=initial_results,
             additional_data=additional_data,
-            **user_options
+            user_args=user_options
         )
         assert len(tasks_metadata) == 3
 
@@ -76,7 +76,7 @@ class TestConvertTiffToHathiJp2Workflow:
             ImageTask
         )
 
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
 
         assert task_builder.add_subtask.called is True
         source_file_path = os.path.join(
@@ -104,7 +104,7 @@ class TestConvertTiffToHathiJp2Workflow:
         }
         task_builder = Mock()
         with pytest.raises(Exception) as e:
-            workflow.create_new_task(task_builder, **job_args)
+            workflow.create_new_task(task_builder, job_args)
         assert "Don't know what to do for bad task type" in str(e.value)
 
 

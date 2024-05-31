@@ -4,11 +4,11 @@ import logging
 import typing
 import warnings
 
-from typing import Any, Dict, List, Union, Optional
+from typing import Any, List, Optional, Mapping, TypedDict
 
 from uiucprescon import packager
 from uiucprescon.packager.packages.collection import Package
-from uiucprescon.packager.packages.collection_builder import Metadata
+from uiucprescon.packager.common import Metadata
 
 import speedwagon
 from speedwagon import validators, utils
@@ -17,7 +17,24 @@ from speedwagon.job import Workflow
 __all__ = ['CaptureOneToDlCompoundWorkflow']
 
 
-class CaptureOneToDlCompoundWorkflow(Workflow):
+CaptureOneToDlCompoundWorkflowTaskArgs = TypedDict(
+    'CaptureOneToDlCompoundWorkflowTaskArgs',
+    {
+        "package": Package,
+        "output": str,
+        "source_path": str,
+    }
+)
+
+UserArgs = TypedDict(
+    'UserArgs', {
+        "Input": str,
+        "Output": str
+    }
+)
+
+
+class CaptureOneToDlCompoundWorkflow(Workflow[UserArgs]):
     """Settings for convert capture one tiff files to DL compound."""
 
     name = "Convert CaptureOne TIFF to Digital Library Compound Object"
@@ -40,11 +57,15 @@ class CaptureOneToDlCompoundWorkflow(Workflow):
             stacklevel=2
         )
 
-    def discover_task_metadata(self,
-                               initial_results: List[Any],
-                               additional_data: Dict[str, Any],
-                               **user_args: str
-                               ) -> List[Dict[str, Any]]:
+    def discover_task_metadata(
+            self,
+            initial_results: List[Any],  # pylint: disable=unused-argument
+            additional_data: Mapping[  # pylint: disable=unused-argument
+                str,
+                Any
+            ],
+            user_args: UserArgs,
+    ) -> List[CaptureOneToDlCompoundWorkflowTaskArgs]:
         """Loot at user settings and discover any data needed to build a task.
 
         Args:
@@ -56,7 +77,7 @@ class CaptureOneToDlCompoundWorkflow(Workflow):
             Returns a list of data to create a job with
 
         """
-        jobs: List[Dict[str, Union[str, Package]]] = []
+        jobs: List[CaptureOneToDlCompoundWorkflowTaskArgs] = []
         source_input = user_args["Input"]
         dest = user_args["Output"]
 
@@ -64,7 +85,7 @@ class CaptureOneToDlCompoundWorkflow(Workflow):
             packager.packages.CaptureOnePackage(delimiter="-"))
 
         for package in package_factory.locate_packages(source_input):
-            new_job: Dict[str, Union[str, Package]] = {
+            new_job: CaptureOneToDlCompoundWorkflowTaskArgs = {
                 "package": package,
                 "output": dest,
                 "source_path": source_input
@@ -73,9 +94,9 @@ class CaptureOneToDlCompoundWorkflow(Workflow):
         return jobs
 
     def create_new_task(
-            self,
-            task_builder: speedwagon.tasks.TaskBuilder,
-            **job_args: Union[str, Package]
+        self,
+        task_builder: speedwagon.tasks.TaskBuilder,
+        job_args: CaptureOneToDlCompoundWorkflowTaskArgs
     ) -> None:
         """Generate a new task.
 
@@ -84,9 +105,9 @@ class CaptureOneToDlCompoundWorkflow(Workflow):
             **job_args:
 
         """
-        existing_package: Package = typing.cast(Package, job_args['package'])
-        new_package_root: str = typing.cast(str, job_args["output"])
-        source_path: str = typing.cast(str, job_args["source_path"])
+        existing_package: Package = job_args['package']
+        new_package_root: str = job_args["output"]
+        source_path: str = job_args["source_path"]
 
         package_id: str = typing.cast(
             str,
@@ -134,7 +155,7 @@ class CaptureOneToDlCompoundWorkflow(Workflow):
         return True
 
 
-class PackageConverter(speedwagon.tasks.Subtask):
+class PackageConverter(speedwagon.tasks.Subtask[None]):
     """Convert packages formats."""
 
     name = "Package Conversion"

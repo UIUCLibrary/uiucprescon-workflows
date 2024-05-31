@@ -33,7 +33,7 @@ def test_initial_task_creates_task():
     mock_builder = Mock()
     workflow.initial_task(
         task_builder=mock_builder,
-        **user_args
+        user_args=user_args
     )
     source = user_args['Source']
     assert \
@@ -69,7 +69,7 @@ def test_discover_task_metadata_one_per_package(
     new_task_md = workflow.discover_task_metadata(
         initial_results=initial_results,
         additional_data=additional_data,
-        **user_options
+        user_args=user_options
     )
     assert len(new_task_md) == number_of_fake_packages
 
@@ -85,7 +85,7 @@ def test_create_new_task_generates_subtask(unconfigured_workflow):
     }
     workflow.create_new_task(
         mock_builder,
-        **job_args
+        job_args
     )
     assert mock_builder.add_subtask.called is True
 
@@ -127,7 +127,7 @@ def test_generate_report_creates_a_report(unconfigured_workflow):
             data=[]
         ),
     ]
-    message = workflow.generate_report(results, **job_args)
+    message = workflow.generate_report(results, user_options)
     assert "Report" in message
 
 
@@ -420,10 +420,10 @@ class TestCompletenessReportGenerator:
         hathi_validate_result.message = "spam"
         task = workflow_completeness.HathiCheckMissingPackageFilesTask
         report_builder.results[task] = [
-            speedwagon.tasks.tasks.Result(
-                source=hathi_validate.result.Result("Dddd"),
-                data=hathi_validate_result
-            )
+            [
+                hathi_validate.result.Result("Dddd"),
+                hathi_validate_result
+            ]
         ]
         report = report_builder.build_report()
         assert "spam" in report

@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 import speedwagon
+import speedwagon.utils
 from speedwagon_uiucprescon import workflow_validate_metadata, tasks
 
 import os
@@ -62,14 +63,23 @@ class TestValidateMetadataWorkflow:
             exists,
             is_dir
     ):
-        user_options = default_options.copy()
-        user_options['Input'] = input_data
+        user_args = default_options.copy()
+        user_args['Input'] = input_data
+
 
         with monkeypatch.context() as mp:
             mp.setattr(os.path, "exists", lambda x: exists)
             mp.setattr(os.path, "isdir", lambda x: is_dir)
-            with pytest.raises(ValueError):
-                assert workflow.validate_user_options(**user_options) is True
+            findings = speedwagon.utils.validate_user_input(
+                {
+                    value.setting_name or value.label: value
+                    for value in speedwagon.utils.assign_values_to_job_options(
+                        workflow.job_options(),
+                        **user_args
+                    )
+                }
+            )
+            assert len(findings) > 0
 
     def test_initial_task(self, monkeypatch, workflow, default_options):
         user_args = default_options.copy()
@@ -85,7 +95,7 @@ class TestValidateMetadataWorkflow:
         )
         workflow.initial_task(
             task_builder=task_builder,
-            **user_args
+            user_args=user_args
         )
 
         assert task_builder.add_subtask.called is True
@@ -111,13 +121,12 @@ class TestValidateMetadataWorkflow:
         tasks_generated = workflow.discover_task_metadata(
             initial_results=initial_results,
             additional_data=additional_data,
-            **user_options
+            user_args=user_options
         )
-        JobValues = workflow_validate_metadata.JobValues
         assert len(tasks_generated) == 1
         assert tasks_generated[0] == {
-            JobValues.ITEM_FILENAME.value: "spam.jp2",
-            JobValues.PROFILE_NAME.value: user_options["Profile"]
+            "filename": "spam.jp2",
+            "profile_name": user_options["Profile"]
         }
 
     def test_create_new_task(self, monkeypatch, workflow):
@@ -133,7 +142,7 @@ class TestValidateMetadataWorkflow:
             ValidateImageMetadataTask
         )
 
-        workflow.create_new_task(task_builder, **job_args)
+        workflow.create_new_task(task_builder, job_args)
 
         assert task_builder.add_subtask.called is True
         ValidateImageMetadataTask.assert_called_with(
@@ -146,18 +155,15 @@ class TestValidateMetadataWorkflow:
         user_options["Input"] = os.path.join("some", "valid", "path")
         user_options['Profile'] = 'HathiTrust JPEG 2000'
 
-        ResultValues = \
-            tasks.ValidateImageMetadataTask.ResultValues
-
         results = [
             speedwagon.tasks.Result(
                 tasks.ValidateImageMetadataTask,
                 {
-                    ResultValues.VALID: True
+                    "valid": True
                 }
             )
         ]
-        report = workflow.generate_report(results, **user_options)
+        report = workflow.generate_report(results, user_options)
         assert isinstance(report, str)
         assert "Total files checked: 1" in report
 
@@ -165,19 +171,17 @@ class TestValidateMetadataWorkflow:
         user_options = default_options.copy()
         user_options["Input"] = os.path.join("some", "valid", "path")
         user_options['Profile'] = 'HathiTrust JPEG 2000'
-        ResultValues = \
-            tasks.ValidateImageMetadataTask.ResultValues
         results = [
             speedwagon.tasks.Result(
                 tasks.ValidateImageMetadataTask,
                 {
-                    ResultValues.VALID: False,
-                    ResultValues.FILENAME: "MyFailingFile.jp2",
-                    ResultValues.REPORT: "spam.txt"
+                    "valid": False,
+                    "filename": "MyFailingFile.jp2",
+                    "report": "spam.txt"
                 }
             )
         ]
-        report = workflow.generate_report(results, **user_options)
+        report = workflow.generate_report(results, user_options)
         assert isinstance(report, str)
         assert "MyFailingFile.jp2" in report
 
@@ -207,9 +211,6 @@ class TestValidateImageMetadataTask:
     def test_work(self, monkeypatch):
         from uiucprescon import imagevalidate
 
-        ResultValues = \
-            tasks.ValidateImageMetadataTask.ResultValues
-
         filename = "asdasd"
         profile_name = "HathiTrust JPEG 2000"
         task = tasks.ValidateImageMetadataTask(
@@ -226,9 +227,9 @@ class TestValidateImageMetadataTask:
         assert \
             task.work() is True and \
             task.results == {
-                ResultValues.FILENAME: filename,
-                ResultValues.VALID: True,
-                ResultValues.REPORT: "* "
+                "filename": filename,
+                "valid": True,
+                "report": "* "
             }
 
 

@@ -1,7 +1,8 @@
 import os
 from unittest.mock import Mock
 from zipfile import ZipFile
-
+from speedwagon.utils import assign_values_to_job_options, validate_user_input
+from speedwagon import validators
 import pytest
 from uiucprescon import packager
 from uiucprescon.packager.packages.collection import Package
@@ -80,50 +81,76 @@ def hathi_limited_view_package_dirs(tmpdir_factory):
     return test_dir
 
 
-def test_output_input_same_is_invalid(tmpdir):
-    temp_dir = tmpdir / "temp"
-    temp_dir.mkdir()
-    with pytest.raises(ValueError) as e:
-        workflow = HathiLimitedToDLWorkflow()
-        workflow.validate_user_options(Input=temp_dir.realpath(),
-                                       Output=temp_dir.realpath())
-    assert "Input cannot be the same as Output" in str(e.value)
-
-
-def test_output_must_exist(tmpdir):
-    temp_dir = tmpdir / "temp"
-    temp_dir.mkdir()
-    with pytest.raises(ValueError) as e:
-        workflow = HathiLimitedToDLWorkflow()
-        workflow.validate_user_options(Input=temp_dir.realpath(),
-                                       Output="./invalid_folder/")
-    assert "Output does not exist" in str(e.value)
-
-
-@pytest.mark.parametrize("missing", ["Input", "Output"])
-def test_no_missing_required(missing, tmpdir):
-    temp_dir = tmpdir / "temp"
-    temp_dir.mkdir()
+def test_output_input_same_is_invalid(monkeypatch):
+    workflow = HathiLimitedToDLWorkflow()
     user_args = {
-        "Input": temp_dir.realpath(),
-        "Output": temp_dir.realpath()
+        "Input": "/some/path",
+        "Output": "/some/path"
     }
-    with pytest.raises(ValueError) as e:
-        workflow = HathiLimitedToDLWorkflow()
-        user_args[missing] = ""
-        workflow.validate_user_options(**user_args)
-    assert f"Missing required value for {missing}" in str(e.value)
+    path_exists = Mock(return_value=True)
+    monkeypatch.setattr(
+        validators.ExistsOnFileSystem,
+        "path_exists",
+        path_exists
+    )
+    findings = validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    path_exists.assert_called_with("/some/path")
+    assert findings["Output"] == ["Input cannot be the same as Output"]
 
 
-def test_input_must_exist(tmpdir):
-    temp_dir = tmpdir / "temp"
-    temp_dir.mkdir()
-    with pytest.raises(ValueError) as e:
-        workflow = HathiLimitedToDLWorkflow()
-        workflow.validate_user_options(Input="./invalid_folder/",
-                                       Output=temp_dir.realpath())
-    assert "Input does not exist" in str(e.value)
+def test_finding_if_output_not_exist(monkeypatch):
+    user_args = {
+        "Input": "some/other/folder",
+        "Output": "./invalid_folder/"
+    }
+    monkeypatch.setattr(
+        validators.ExistsOnFileSystem,
+        "path_exists",
+        lambda *_: False
+    )
+    workflow = HathiLimitedToDLWorkflow()
+    findings = validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert findings["Output"] == ["Output does not exist"]
 
+
+def test_finding_if_input_not_exist(monkeypatch):
+    path_exists = Mock(return_value=False)
+    user_args = {
+        "Input": "some/other/folder",
+        "Output": "./invalid_folder/"
+    }
+    monkeypatch.setattr(
+        validators.ExistsOnFileSystem,
+        "path_exists",
+        path_exists
+    )
+    workflow = HathiLimitedToDLWorkflow()
+    findings = validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    assert findings["Input"] == ["Input does not exist"]
 
 class TestPackageConverter:
     def test_transform_is_called(self):
@@ -156,7 +183,7 @@ class TestHathiLimitedToDLWorkflow:
         ]
         report = HathiLimitedToDLWorkflow.generate_report(
             results=results,
-            Output="dummy"
+            user_args={"Output": "dummy"}
         )
         assert "All done. Converted 2 packages." in report
 
@@ -164,11 +191,10 @@ class TestHathiLimitedToDLWorkflow:
         workflow = HathiLimitedToDLWorkflow()
         task_builder = Mock()
         args = {
-            "task_builder": task_builder,
             "package": Mock(),
             "destination": Mock()
         }
-        workflow.create_new_task(**args)
+        workflow.create_new_task(task_builder, args)
         assert task_builder.add_subtask.called is True
 
     def test_discover_task_metadata(self, monkeypatch):
@@ -189,7 +215,7 @@ class TestHathiLimitedToDLWorkflow:
         task_metadata = workflow.discover_task_metadata(
             initial_results=[],
             additional_data=[],
-            **user_args
+            user_args=user_args
         )
         assert task_metadata[0]["destination"] == user_args['Output'] and \
                'package' in task_metadata[0]

@@ -1,7 +1,11 @@
+import itertools
 import os
 from unittest.mock import Mock
 import pytest
 import speedwagon
+from speedwagon import validators
+from speedwagon.utils import assign_values_to_job_options, validate_user_input
+
 from speedwagon_uiucprescon import workflow_make_jp2
 
 
@@ -49,7 +53,7 @@ def test_discover_task_metadata(monkeypatch, unconfigured_workflow,
         new_task_md = workflow.discover_task_metadata(
             initial_results=initial_results,
             additional_data=additional_data,
-            **user_options
+            user_args=user_options
         )
 
     assert len(new_task_md) == number_of_fake_images
@@ -77,7 +81,7 @@ def test_create_new_task_generates_subtask(unconfigured_workflow, profile):
     }
     workflow.create_new_task(
         mock_builder,
-        **job_args
+        job_args
     )
     assert mock_builder.add_subtask.called is True
     assert mock_builder.add_subtask.call_count == 2
@@ -92,14 +96,13 @@ def test_create_new_task_generates_subtask(unconfigured_workflow, profile):
 
 def test_generate_report_creates_a_report(unconfigured_workflow):
     workflow, user_options = unconfigured_workflow
-    job_args = {}
     results = [
         speedwagon.tasks.Result(
             source=workflow_make_jp2.ConvertFileTask,
             data={'file_created': "123.jp2"}
         )
     ]
-    message = workflow.generate_report(results, **job_args)
+    message = workflow.generate_report(results, user_args=user_options)
     assert "Results" in message and \
            "123.jp2" in message
 
@@ -160,7 +163,7 @@ def test_create_jp2(monkeypatch, profile_name):
         tasks_md = workflow.discover_task_metadata(
             initial_results=initial_results,
             additional_data=additional_data,
-            **user_args
+            user_args=user_args
         )
     assert len(tasks_md) > 0
     working_dir = 'some_working_path'
@@ -169,7 +172,7 @@ def test_create_jp2(monkeypatch, profile_name):
         working_dir=working_dir
     )
     for task_metadata in tasks_md:
-        workflow.create_new_task(task_builder, **task_metadata)
+        workflow.create_new_task(task_builder, task_metadata)
     new_tasks = task_builder.build_task()
 
     created_files = []
@@ -236,46 +239,51 @@ class TestMakeJp2Workflow:
             "Output": os.path.join("some", "output", "path")
 
         }
-
-        # Simulate that the input directory does not exists
-        def exists(path):
-            if path == user_args["Input"]:
-                return False
-            return True
-
         monkeypatch.setattr(
-            workflow_make_jp2.os.path, "exists", exists
+            validators.ExistsOnFileSystem,
+            "path_exists",
+            lambda *_: False
         )
-
-        monkeypatch.setattr(
-            workflow_make_jp2.os.path, "isdir", lambda path: True
+        findings = validate_user_input(
+            {
+                value.setting_name or value.label: value
+                for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_args
+                )
+            }
         )
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**user_args)
+        assert len(findings) > 0
 
     def test_validate_user_options_input_not_exists(self, monkeypatch):
         workflow = workflow_make_jp2.MakeJp2Workflow()
+
         user_args = {
             "Input": os.path.join("some", "source", "path"),
             "Output": os.path.join("some", "output", "path")
 
         }
-
-        # Simulate that the input directory does not exists
-        def exists(path):
-            if path == user_args["Output"]:
-                return False
-            return True
-
         monkeypatch.setattr(
-            workflow_make_jp2.os.path, "exists", exists
+            validators.ExistsOnFileSystem,
+            "path_exists",
+            lambda *_: False
         )
-
         monkeypatch.setattr(
             workflow_make_jp2.os.path, "isdir", lambda path: True
         )
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**user_args)
+        findings = validate_user_input(
+            {
+                value.setting_name or value.label: value
+                for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_args
+                )
+            }
+        )
+        assert findings['Input'] == [
+            f'{os.path.join("some", "source", "path")} does not exist'
+        ]
+
 
     def test_validate_user_options_input_file_is_error(self, monkeypatch):
         workflow = workflow_make_jp2.MakeJp2Workflow()
@@ -284,22 +292,32 @@ class TestMakeJp2Workflow:
             "Output": os.path.join("some", "output", "path")
 
         }
-
-        # Simulate that the input is a file
+        monkeypatch.setattr(
+            validators.ExistsOnFileSystem,
+            "path_exists",
+            lambda *_: True
+        )
         def isdir(path):
             if path == user_args["Input"]:
                 return False
             return True
 
         monkeypatch.setattr(
-            workflow_make_jp2.os.path, "exists", lambda path: True
-        )
-
-        monkeypatch.setattr(
             workflow_make_jp2.os.path, "isdir", isdir
         )
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**user_args)
+        findings = validate_user_input(
+            {
+                    value.setting_name or value.label: value
+                    for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_args
+                )
+            }
+        )
+        assert findings['Input'] == [
+            f'{os.path.join("some", "source", "file.txt")} is not a directory'
+        ]
+
 
     def test_validate_user_options_output_file_is_error(self, monkeypatch):
         workflow = workflow_make_jp2.MakeJp2Workflow()
@@ -308,19 +326,28 @@ class TestMakeJp2Workflow:
             "Output": os.path.join("some", "output", "file.txt")
 
         }
-
-        # Simulate that the input is a file
+        monkeypatch.setattr(
+            validators.ExistsOnFileSystem,
+            "path_exists",
+            lambda *_: True
+        )
         def isdir(path):
             if path == user_args["Output"]:
                 return False
             return True
 
         monkeypatch.setattr(
-            workflow_make_jp2.os.path, "exists", lambda path: True
-        )
-
-        monkeypatch.setattr(
             workflow_make_jp2.os.path, "isdir", isdir
         )
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**user_args)
+        findings = validate_user_input(
+            {
+                value.setting_name or value.label: value
+                for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_args
+                )
+            }
+        )
+        assert findings['Output'] == [
+            f"{os.path.join('some', 'output','file.txt')} is not a directory"
+        ]

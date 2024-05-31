@@ -1,17 +1,25 @@
 """Workflow for converting tiff files to hathitrust jp2s."""
-
+from __future__ import annotations
 import abc
 import enum
 import os
 import shutil
 import itertools
 import warnings
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Mapping, TypedDict, TYPE_CHECKING
 
 import pykdu_compress
 from py3exiv2bind.core import set_dpi
 import speedwagon
 from speedwagon.job import Workflow
+
+if TYPE_CHECKING:
+    import sys
+    if sys.version_info >= (3, 11):
+        from typing import Never
+    else:
+        from typing_extensions import Never
+
 
 __all__ = ['ConvertTiffToHathiJp2Workflow']
 
@@ -38,7 +46,7 @@ class ProcessFile:
     def process(self, source_file: str, destination_path: str) -> None:
         self._strategy.process(source_file, destination_path)
 
-    def status_message(self):
+    def status_message(self) -> str:
         return self._strategy.status
 
 
@@ -54,7 +62,7 @@ class ConvertFile(AbsProcessStrategy):
         self.status = f"Generated {output_file_path}"
 
     @staticmethod
-    def generate_jp2(source_file: str, output_file_path: str):
+    def generate_jp2(source_file: str, output_file_path: str) -> None:
         in_args = [
             "Clevels=5",
             "Clayers=8",
@@ -80,6 +88,15 @@ class CopyFile(AbsProcessStrategy):
         self.status = f"Copied {source_file} to {destination_path}"
 
 
+JobArgs = TypedDict("JobArgs", {
+    "source_root": str,
+    "output_root": str,
+    "relative_path_to_root": str,
+    "source_file": str,
+    "task_type": str,
+})
+
+
 class ConvertTiffToHathiJp2Workflow(Workflow):
     name = "Convert TIFF to HathiTrust JP2"
     active = False
@@ -99,10 +116,13 @@ class ConvertTiffToHathiJp2Workflow(Workflow):
             stacklevel=2
         )
 
-    def discover_task_metadata(self, initial_results: List[Any],
-                               additional_data,
-                               **user_args: str) -> List[dict]:
-        jobs = []
+    def discover_task_metadata(
+        self,
+        initial_results: List[Any],  # pylint: disable=unused-argument
+        additional_data: Mapping[str, Never],  # pylint: disable=W0613
+        user_args: Mapping[str, Any]
+    ) -> List[JobArgs]:
+        jobs: List[JobArgs] = []
         source_input = user_args["Input"]
         dest = user_args["Output"]
 
@@ -142,9 +162,11 @@ class ConvertTiffToHathiJp2Workflow(Workflow):
 
         return jobs
 
-    def create_new_task(self,
-                        task_builder: "speedwagon.tasks.TaskBuilder",
-                        **job_args: str) -> None:
+    def create_new_task(
+        self,
+        task_builder: "speedwagon.tasks.TaskBuilder",
+        job_args: JobArgs
+    ) -> None:
 
         output_root = job_args['output_root']
         relative_path_to_root = job_args['relative_path_to_root']
@@ -167,7 +189,7 @@ class ConvertTiffToHathiJp2Workflow(Workflow):
             raise RuntimeError(f"Don't know what to do for {task_type}")
 
 
-class ImageConvertTask(speedwagon.tasks.Subtask):
+class ImageConvertTask(speedwagon.tasks.Subtask[None]):
     name = "Convert Images"
 
     def __init__(self, source_file_path: str, output_path: str) -> None:
@@ -191,7 +213,7 @@ class ImageConvertTask(speedwagon.tasks.Subtask):
         return True
 
 
-class CopyTask(speedwagon.tasks.Subtask):
+class CopyTask(speedwagon.tasks.Subtask[None]):
     name = "Copy Files"
 
     def __init__(self, source_file_path: str, output_path: str) -> None:

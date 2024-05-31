@@ -5,11 +5,11 @@ Created on 9/8/2021 by Henry Borchers
 """
 
 import abc
-from typing import Optional
+from typing import Optional, List
 import speedwagon
 
 
-class AbsFindPackageTask(speedwagon.tasks.Subtask, abc.ABC):
+class AbsFindPackageTask(speedwagon.tasks.Subtask[List[str]], abc.ABC):
     """Base class for creating find package tasks.
 
     To implement, override the find_packages method.
@@ -37,7 +37,7 @@ class AbsFindPackageTask(speedwagon.tasks.Subtask, abc.ABC):
         return True
 
     @abc.abstractmethod
-    def find_packages(self, search_path: str):
+    def find_packages(self, search_path: str) -> List[str]:
         """Locate package type.
 
         Args:

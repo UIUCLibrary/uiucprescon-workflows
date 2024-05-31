@@ -1,17 +1,22 @@
 """Shared checksum tasks."""
-import enum
 import os
 import typing
-from typing import Optional
+from typing import Optional, TypedDict
 
 from pyhathiprep import checksum
 from uiucprescon import imagevalidate
 
 import speedwagon
-from speedwagon.workflows.checksum_shared import ResultsValues
 
 
-class MakeChecksumTask(speedwagon.tasks.Subtask):
+MakeChecksumResult = typing.TypedDict("MakeChecksumResult", {
+    "source_filename": str,
+    "checksum_hash": str,
+    "checksum_file": str,
+})
+
+
+class MakeChecksumTask(speedwagon.tasks.Subtask[MakeChecksumResult]):
     """Create a make checksum task."""
 
     name = "Create Checksum"
@@ -37,19 +42,19 @@ class MakeChecksumTask(speedwagon.tasks.Subtask):
         self.log(f"Calculated the checksum for {item_file_name}")
 
         file_to_calculate = os.path.join(item_path, item_file_name)
-        result = {
-            ResultsValues.SOURCE_FILE: item_file_name,
-            ResultsValues.SOURCE_HASH: checksum.calculate_md5_hash(
+        result: MakeChecksumResult = {
+            "source_filename": item_file_name,
+            "checksum_hash": checksum.calculate_md5_hash(
                 file_to_calculate
             ),
-            ResultsValues.CHECKSUM_FILE: report_path_to_save_to,
+            "checksum_file": report_path_to_save_to,
         }
         self.set_results(result)
 
         return True
 
 
-class MakeCheckSumReportTask(speedwagon.tasks.Subtask):
+class MakeCheckSumReportTask(speedwagon.tasks.Subtask[None]):
     """Generate a checksum report.
 
     This normally an .md5 file.
@@ -60,9 +65,7 @@ class MakeCheckSumReportTask(speedwagon.tasks.Subtask):
     def __init__(
         self,
         output_filename: str,
-        checksum_calculations: typing.Iterable[
-            typing.Mapping[ResultsValues, str]
-        ],
+        checksum_calculations: typing.Iterable[MakeChecksumResult],
     ) -> None:
         """Create a checksum report task."""
         super().__init__()
@@ -77,8 +80,8 @@ class MakeCheckSumReportTask(speedwagon.tasks.Subtask):
         """Generate the report file."""
         report_builder = checksum.HathiChecksumReport()
         for item in self._checksum_calculations:
-            filename = item[ResultsValues.SOURCE_FILE]
-            hash_value = item[ResultsValues.SOURCE_HASH]
+            filename = item['source_filename']
+            hash_value = item['checksum_hash']
             report_builder.add_entry(filename, hash_value)
         report: str = report_builder.build()
 
@@ -89,17 +92,21 @@ class MakeCheckSumReportTask(speedwagon.tasks.Subtask):
         return True
 
 
-class ValidateImageMetadataTask(speedwagon.tasks.Subtask):
+ValidateImageMetadataResult = TypedDict(
+    "ValidateImageMetadataResult", {
+        "valid": bool,
+        "filename": str,
+        "report": str,
+    }
+)
+
+
+class ValidateImageMetadataTask(
+    speedwagon.tasks.Subtask[ValidateImageMetadataResult]
+):
     """Validate the metadata of a image file."""
 
     name = "Validate Image Metadata"
-
-    class ResultValues(enum.Enum):
-        """Result keys used in validation results."""
-
-        VALID = "valid"
-        FILENAME = "filename"
-        REPORT = "report"
 
     def __init__(self, filename: str, profile_name: str) -> None:
         """Create an image validation subtask.
@@ -110,10 +117,7 @@ class ValidateImageMetadataTask(speedwagon.tasks.Subtask):
         """
         super().__init__()
         self._filename = filename
-        self._profile = typing.cast(
-            imagevalidate.profiles.AbsProfile,
-            imagevalidate.get_profile(profile_name),
-        )
+        self._profile = imagevalidate.get_profile(profile_name)
 
     def task_description(self) -> Optional[str]:
         """Get user readable information about what the subtask is doing."""
@@ -134,11 +138,12 @@ class ValidateImageMetadataTask(speedwagon.tasks.Subtask):
             report_text = str(error)
         self.log(f"Validating {self._filename} -- {is_valid}")
 
-        result = {
-            ValidateImageMetadataTask.ResultValues.FILENAME: self._filename,
-            ValidateImageMetadataTask.ResultValues.VALID: is_valid,
-            ValidateImageMetadataTask.ResultValues.REPORT: f"* {report_text}",
-        }
+        self.set_results(
+            {
+                "filename": self._filename,
+                "valid": is_valid,
+                "report": f"* {report_text}",
+            }
+        )
 
-        self.set_results(result)
         return True

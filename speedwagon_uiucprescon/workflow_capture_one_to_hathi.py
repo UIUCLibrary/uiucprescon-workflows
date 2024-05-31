@@ -1,15 +1,18 @@
 """Workflow for converting capture one packages to Hathi packages."""
-
+from __future__ import annotations
 import logging
 import typing
 import warnings
-from typing import List, Any, Dict, Optional
+from typing import List, Any, Optional, Mapping, TYPE_CHECKING
 from uiucprescon import packager
-from uiucprescon.packager.packages.collection_builder import Metadata
+from uiucprescon.packager.common import Metadata
 
 import speedwagon.tasks.tasks
 from speedwagon import utils
 from speedwagon.job import Workflow
+
+if TYPE_CHECKING:
+    import uiucprescon.packager.packages.collection
 
 
 __all__ = ['CaptureOneToHathiTiffPackageWorkflow']
@@ -37,10 +40,10 @@ class CaptureOneToHathiTiffPackageWorkflow(Workflow):
         )
 
     def discover_task_metadata(
-            self,
-            initial_results: List[Any],
-            additional_data: Dict[str, Any],
-            **user_args: str
+        self,
+        initial_results: List[Any],  # pylint: disable=unused-argument
+        additional_data: Mapping[str, Any],  # pylint: disable=unused-argument
+        user_args: Mapping[str, Any],
     ) -> List[typing.Dict[str, Any]]:
 
         source_input: str = user_args["Input"]
@@ -60,9 +63,9 @@ class CaptureOneToHathiTiffPackageWorkflow(Workflow):
         return jobs
 
     def create_new_task(
-            self,
-            task_builder: speedwagon.tasks.tasks.TaskBuilder,
-            **job_args
+        self,
+        task_builder: speedwagon.tasks.tasks.TaskBuilder,
+        job_args
     ) -> None:
 
         existing_package = job_args['package']
@@ -80,14 +83,14 @@ class CaptureOneToHathiTiffPackageWorkflow(Workflow):
         task_builder.add_subtask(packaging_task)
 
 
-class PackageConverter(speedwagon.tasks.tasks.Subtask):
+class PackageConverter(speedwagon.tasks.tasks.Subtask[None]):
     name = "Convert Package"
 
     def __init__(
             self,
             source_path: str,
             packaging_id: str,
-            existing_package,
+            existing_package: uiucprescon.packager.packages.collection.Package,
             new_package_root: str
     ) -> None:
 

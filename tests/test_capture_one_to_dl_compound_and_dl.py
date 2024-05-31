@@ -1,35 +1,42 @@
+import itertools
 from unittest.mock import Mock, MagicMock, call
 
 import pytest
 from uiucprescon import packager
 import speedwagon
+from speedwagon.utils import assign_values_to_job_options, validate_user_input
 import speedwagon.exceptions
-
+from speedwagon import validators
 from speedwagon_uiucprescon \
     import workflow_capture_one_to_dl_compound_and_dl as ht_wf
 
 import os.path
 
 
-def test_input_must_exist(monkeypatch):
-
-    options = {
+def test_input_does_not_exist(monkeypatch):
+    workflow = ht_wf.CaptureOneToDlCompoundAndDLWorkflow()
+    path_exists = Mock(return_value=False)
+    monkeypatch.setattr(
+        speedwagon.validators.ExistsOnFileSystem,
+        "path_exists",
+        path_exists
+    )
+    user_args = {
         "Input": "./invalid_folder/",
         "Output Digital Library": "./some_real_DL_folder",
         "Output HathiTrust": "./some_real_HT_folder",
     }
-
-    def mock_exists(path):
-        if path == options["Input"]:
-            return False
-        else:
-            return True
-    with monkeypatch.context() as mp:
-        mp.setattr(os.path, "exists", mock_exists)
-        with pytest.raises(ValueError) as e:
-            workflow = ht_wf.CaptureOneToDlCompoundAndDLWorkflow()
-            workflow.validate_user_options(**options)
-        assert 'Directory "./invalid_folder/" does not exist' in str(e.value)
+    findings = speedwagon.utils.validate_user_input(
+        {
+            value.setting_name or value.label: value
+            for value in assign_values_to_job_options(
+                workflow.job_options(),
+                **user_args
+            )
+        }
+    )
+    path_exists.assert_called()
+    assert findings["Input"] == ['./invalid_folder/ does not exist']
 
 
 def test_discover_task_metadata(monkeypatch, user_options):
@@ -61,7 +68,7 @@ def test_discover_task_metadata(monkeypatch, user_options):
         new_task_metadata = workflow.discover_task_metadata(
             initial_results=initial_results,
             additional_data=additional_data,
-            **user_options
+            user_args=user_options
         )
 
     assert len(new_task_metadata) == 1
@@ -86,7 +93,7 @@ def test_create_new_task_hathi_and_dl(monkeypatch):
         "source_path": "./some_real_source_folder/",
     }
     workflow = ht_wf.CaptureOneToDlCompoundAndDLWorkflow()
-    workflow.create_new_task(task_builder, **job_args)
+    workflow.create_new_task(task_builder, job_args=job_args)
     task_built = task_builder.build_task()
     assert len(task_built.subtasks) == 2
     tasks_sorted = sorted(task_built.subtasks, key=lambda t: t.package_format)
@@ -162,7 +169,7 @@ class TestWorkflow:
             new_task_metadata = workflow.discover_task_metadata(
                 initial_results=initial_results,
                 additional_data=additional_data,
-                **user_options
+                user_args=user_options
             )
             package_factory = Mock()
             for task_metadata in new_task_metadata:
@@ -170,7 +177,7 @@ class TestWorkflow:
                     speedwagon.tasks.MultiStageTaskBuilder("."),
                     "."
                 )
-                workflow.create_new_task(task_builder, **task_metadata)
+                workflow.create_new_task(task_builder, job_args=task_metadata)
                 for t in task_builder.build_task().subtasks:
                     t.package_factory = Mock(return_value=package_factory)
                     t.exec()
@@ -219,28 +226,33 @@ class TestValidateUserArgs:
     def test_one_output_must_exist(
             self, user_options, monkeypatch, dl_outpath, ht_outpath, is_valid
     ):
-        user_options['Input'] = "some/real/path"
-        user_options['Output Digital Library'] = dl_outpath
-        user_options['Output HathiTrust'] = ht_outpath
-
-        existing_paths = [
-            user_options['Input'],
-            user_options['Output Digital Library'],
-            user_options['Output HathiTrust']
-        ]
-
+        user_args = {
+            "Input": "some/real/path",
+            "Output Digital Library": dl_outpath,
+            "Output HathiTrust": ht_outpath,
+        }
         monkeypatch.setattr(
-            os.path,
-            "exists",
-            lambda path: path in existing_paths and path is not None
+            validators.ExistsOnFileSystem,
+            "path_exists",
+            lambda *_: True
         )
-
+        monkeypatch.setattr(
+            validators.IsDirectory,
+            "is_dir",
+            lambda *_: True
+        )
         workflow = ht_wf.CaptureOneToDlCompoundAndDLWorkflow()
-        if is_valid is True:
-            assert workflow.validate_user_options(**user_options) is True
-        else:
-            with pytest.raises(ValueError):
-                workflow.validate_user_options(**user_options)
+
+        findings = validate_user_input(
+            {
+                value.setting_name or value.label: value
+                for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_args
+                )
+            }
+        )
+        assert len(findings) > 0
 
     def test_valid(self, user_options, monkeypatch):
         user_options['Input'] = "some/real/path"
@@ -252,61 +264,31 @@ class TestValidateUserArgs:
             mp.setattr(os.path, "exists", lambda x: True)
             assert workflow.validate_user_options(**user_options) is True
 
-    def test_invalid_no_outputs(self, user_options):
+    def test_invalid_no_outputs(self, user_options, monkeypatch):
         user_options['Input'] = "some/real/path"
         user_options['Output Digital Library'] = None
         user_options['Output HathiTrust'] = None
-        workflow = ht_wf.CaptureOneToDlCompoundAndDLWorkflow()
-        with pytest.raises(ValueError):
-            workflow.validate_user_options(**user_options)
-
-
-@pytest.mark.parametrize("dl_outpath, ht_outpath, is_valid", [
-        ("some/real/output/dl", "some/real/output/ht", True),
-        (None, "some/real/output/ht", True),
-        ("some/real/output/dl", None, True),
-        (None, None, False),
-    ])
-def test_output_validator(monkeypatch, dl_outpath, ht_outpath, is_valid):
-    user_options = {}
-    user_options['Input'] = "some/real/path"
-    user_options['Output Digital Library'] = dl_outpath
-    user_options['Output HathiTrust'] = ht_outpath
-    checks = [
-        'Output Digital Library',
-        'Output HathiTrust'
-    ]
-    existing_paths = [
-        user_options['Output Digital Library'],
-        user_options['Output HathiTrust']
-    ]
-    monkeypatch.setattr(
-        os.path,
-        "exists",
-        lambda path: path in existing_paths and path is not None
-    )
-    validator = ht_wf.MinimumOutputsValidator(checks)
-    assert \
-        validator.is_valid(
-            **user_options
-        ) is is_valid, validator.explanation(**user_options)
-
-
-def test_output_validator_success_is_ok(user_options, monkeypatch):
-    user_options['Input'] = "some/real/path"
-    user_options['Output Digital Library'] = "some/real/output_path_for_dl"
-    user_options['Output HathiTrust'] = "some/real/output_path_for_ht"
-
-    validator = ht_wf.MinimumOutputsValidator(
-        ['Output Digital Library', "Output HathiTrust"]
-    )
-    with monkeypatch.context() as mp:
-        mp.setattr(
-            ht_wf.MinimumOutputsValidator,
-            "is_valid",
-            lambda *args, **user_args: True
+        monkeypatch.setattr(
+            validators.ExistsOnFileSystem,
+            "path_exists",
+            lambda *_: True
         )
-        assert validator.explanation(**user_options) == "ok"
+        monkeypatch.setattr(
+            validators.IsDirectory,
+            "is_dir",
+            lambda *_: True
+        )
+        workflow = ht_wf.CaptureOneToDlCompoundAndDLWorkflow()
+        findings = validate_user_input(
+            {
+                value.setting_name or value.label: value
+                for value in assign_values_to_job_options(
+                    workflow.job_options(),
+                    **user_options
+                )
+            }
+        )
+        assert len(findings) > 0
 
 
 @pytest.mark.parametrize(
@@ -362,15 +344,8 @@ def test_discover_task_metadata_gets_right_package(
         workflow.discover_task_metadata(
             initial_results=initial_results,
             additional_data=additional_data,
-            **user_args
+            user_args=user_args
         )
-    # assert PackageFactory.called is True
-    #
-    # calls = [
-    #     call(packager.packages.CaptureOnePackage(delimiter="-"))
-    # ]
-    # PackageFactory.assert_has_calls(calls)
-
 
 def test_discover_task_metadata_invalid_package(user_options):
     workflow = ht_wf.CaptureOneToDlCompoundAndDLWorkflow()
@@ -381,7 +356,7 @@ def test_discover_task_metadata_invalid_package(user_options):
         workflow.discover_task_metadata(
             initial_results=initial_results,
             additional_data=additional_data,
-            **user_options
+            user_args=user_options
         )
 
 
@@ -401,7 +376,7 @@ def test_failed_to_locate_files_throws_speedwagon_exception(
         workflow.discover_task_metadata(
             initial_results=[],
             additional_data={},
-            **user_options
+            user_args=user_options
         )
 
 
@@ -415,136 +390,6 @@ def test_package_converter_invalid_format():
             package_format="invalid package format"
         )
     assert "is not a known value" in str(e.value)
-
-
-class TestOutputsValidValuesValidator:
-    def test_valid(self):
-        validator = ht_wf.OutputsValidValuesValidator(
-            keys_to_check=[
-                'Output Digital Library',
-                'Output HathiTrust'
-            ]
-        )
-        user_options = {
-            "Input": "some_path",
-            "Package Type": "Capture One",
-            "Output Digital Library":
-                os.path.join("valid", "path", "that", "exists", "1"),
-            "Output HathiTrust":
-                os.path.join("valid", "path", "that", "exists", "2"),
-        }
-        validator.directory_validator = lambda entry: True
-        assert validator.is_valid(**user_options) is True
-
-    def test_valid_explaination_ok(self):
-        validator = ht_wf.OutputsValidValuesValidator(
-            keys_to_check=[
-                'Output Digital Library',
-                'Output HathiTrust'
-            ]
-        )
-        user_options = {
-            "Input": "some_path",
-            "Package Type": "Capture One",
-            "Output Digital Library":
-                os.path.join("valid", "path", "that", "exists", "1"),
-            "Output HathiTrust":
-                os.path.join("valid", "path", "that", "exists", "2"),
-        }
-        validator.directory_validator = lambda entry: True
-        assert validator.explanation(**user_options) == "ok"
-
-    def test_single_invalid_dir(self):
-        validator = ht_wf.OutputsValidValuesValidator(
-            keys_to_check=[
-                'Output Digital Library',
-                'Output HathiTrust'
-            ]
-        )
-        user_options = {
-            "Input": "some_path",
-            "Package Type": "Capture One",
-            "Output Digital Library":
-                os.path.join("valid", "path", "that", "doesnot", "exist"),
-            "Output HathiTrust":
-                os.path.join("valid", "path", "that", "exists", "2"),
-        }
-
-        validator.directory_validator = \
-            lambda entry: entry == user_options['Output Digital Library']
-
-        assert validator.is_valid(**user_options) is False
-
-    def test_single_invalid_dir_message(self):
-        validator = ht_wf.OutputsValidValuesValidator(
-            keys_to_check=[
-                'Output Digital Library',
-                'Output HathiTrust'
-            ]
-        )
-        user_options = {
-            "Input": "some_path",
-            "Package Type": "Capture One",
-            "Output Digital Library":
-                os.path.join("valid", "path", "that", "doesnot", "exist"),
-            "Output HathiTrust":
-                os.path.join("valid", "path", "that", "exists", "2"),
-        }
-
-        validator.directory_validator = \
-            lambda entry: entry != user_options['Output Digital Library']
-
-        assert user_options['Output Digital Library'] in \
-               validator.explanation(**user_options)
-
-    def test_multiple_invalid_dir_message(self):
-        validator = ht_wf.OutputsValidValuesValidator(
-            keys_to_check=[
-                'Output Digital Library',
-                'Output HathiTrust'
-            ]
-        )
-
-        user_options = {
-            "Input": "some_path",
-            "Package Type": "Capture One",
-            "Output Digital Library":
-                os.path.join("valid", "path", "that", "doesnot", "exist", "1"),
-            "Output HathiTrust":
-                os.path.join("valid", "path", "that", "doesnot", "exist", "2"),
-        }
-
-        validator.directory_validator = \
-            lambda entry: entry not in [
-                user_options['Output Digital Library'],
-                user_options['Output HathiTrust'],
-            ]
-
-        explanation = validator.explanation(**user_options)
-
-        assert user_options['Output Digital Library'] in explanation and \
-               user_options['Output HathiTrust'] in explanation
-
-    def test_one_valid_on_none(self):
-        validator = ht_wf.OutputsValidValuesValidator(
-            keys_to_check=[
-                'Output Digital Library',
-                'Output HathiTrust'
-            ]
-        )
-        user_options = {
-            "Input": "some_path",
-            "Package Type": "Capture One",
-            "Output Digital Library": None,
-            "Output HathiTrust":
-                os.path.join("valid", "path", "that", "exists"),
-        }
-
-        validator.directory_validator = \
-            lambda entry: entry == user_options['Output HathiTrust']
-
-        assert validator.is_valid(**user_options) is True
-
 
 def test_tasks_have_description():
     task = ht_wf.PackageConverter(

@@ -47,9 +47,7 @@ from .workflow_verify_checksums import (
 from .workflow_zip_packages import ZipPackagesWorkflow
 
 # Deprecated workflows
-from .workflow_batch_to_hathi_tiff import (
-    CaptureOneBatchToHathiComplete,
-)
+
 from .workflow_capture_one_to_dl_compound import (
     CaptureOneToDlCompoundWorkflow,
 )
@@ -64,12 +62,14 @@ from .workflow_make_checksum import (
     RegenerateChecksumBatchMultipleWorkflow,
 )
 
+from .workflow_validate_metadata import ValidateMetadataWorkflow
 
-active_workflows: typing.List[typing.Type[speedwagon.Workflow]] = [
-    GenerateMarcXMLFilesWorkflow,
+active_workflows: typing.List[typing.Type[speedwagon.Workflow[typing.Any]]] = [
     CaptureOneToDlCompoundAndDLWorkflow,
+    ChecksumWorkflow,
     CompletenessWorkflow,
     ConvertTiffPreservationToDLJp2Workflow,
+    GenerateMarcXMLFilesWorkflow,
     HathiLimitedToDLWorkflow,
     HathiPrepWorkflow,
     MakeChecksumBatchSingleWorkflow,
@@ -78,13 +78,14 @@ active_workflows: typing.List[typing.Type[speedwagon.Workflow]] = [
     MedusaPreingestCuration,
     OCRWorkflow,
     ValidateImageMetadataWorkflow,
-    ChecksumWorkflow,
+    ValidateMetadataWorkflow,
     VerifyChecksumBatchSingleWorkflow,
     ZipPackagesWorkflow,
 ]
 
-deprecated_workflows: typing.List[typing.Type[speedwagon.Workflow]] = [
-    CaptureOneBatchToHathiComplete,
+deprecated_workflows: typing.List[
+    typing.Type[speedwagon.Workflow[typing.Any]]
+] = [
     CaptureOneToDlCompoundWorkflow,
     CaptureOneToHathiTiffPackageWorkflow,
     ConvertTiffToHathiJp2Workflow,
