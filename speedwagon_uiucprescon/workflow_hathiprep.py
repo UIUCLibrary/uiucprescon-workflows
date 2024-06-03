@@ -215,7 +215,7 @@ class HathiPrepWorkflow(speedwagon.Workflow[UserArgs]):
         user_request_factory: UserRequestFactory,
         options: UserArgs,
         pretask_results: List[speedwagon.tasks.Result[List[str]]]
-    ) -> Dict[str, List[str]]:
+    ) -> Mapping[str, List[str]]:
         """Request title pages information for the packages from the user."""
         if len(pretask_results) != 1:
             return {}
