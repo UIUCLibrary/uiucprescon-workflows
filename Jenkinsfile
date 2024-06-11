@@ -949,7 +949,7 @@ pipeline {
                                 unstash 'PYTHON_PACKAGES'
                                 script{
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/make_osx_dist.sh --using-wheel ${wheel} --base-python python3.11"
+                                        sh "./contrib/make_standalone.sh ${wheel}"
                                     }
                                 }
                             }
@@ -986,7 +986,7 @@ pipeline {
                                 script{
                                     unstash 'PYTHON_PACKAGES'
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/make_osx_dist.sh --using-wheel ${wheel} --base-python python3.11"
+                                        sh "./contrib/make_standalone.sh ${wheel}"
                                     }
                                 }
                             }

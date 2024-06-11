@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "speedwagon-uiucprescon"
 version = "0.0.1.dev0"
 dependencies = [
-    "speedwagon==0.4.0b6",
+    "speedwagon==0.4.0b7",
     "HathiZip>=0.1.10",
     "HathiValidate>=0.3.8",
     "pyhathiprep>=0.1.10",
@@ -31,7 +31,6 @@ authors = [
 #uiucprescon_workflows = 'speedwagon_uiucprecson:uiucprescon_plugin'
 uiucprescon_active_workflows = 'speedwagon_uiucprescon.active_workflows'
 uiucprescon_deprecated_workflows = 'speedwagon_uiucprescon.deprecated_workflows'
-toy_workflows = 'speedwagon_uiucprescon.toy_workflows'
 
 #uiucprescon_plugin_deprecated = 'speedwagon_uiucprecson:uiucprescon_plugin_deprecated'
 [tool.setuptools]
