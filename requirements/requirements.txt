@@ -1,4 +1,4 @@
-speedwagon[qt]==0.4.0b5
+speedwagon[qt]==0.4.0b7
 HathiZip>=0.1.10
 HathiValidate>=0.3.8
 pyhathiprep>=0.1.10
