@@ -361,6 +361,12 @@ def testPythonPackages(){
     }
 }
 
+def get_packaging_scripts(){
+    dir('speedwagon_scripts'){
+        git branch: 'main', url: 'https://github.com/UIUCLibrary/speedwagon_scripts.git'
+    }
+}
+
 def getMacDevpiTestStages(packageName, packageVersion, pythonVersions, devpiServer, devpiCredentialsId, devpiIndex) {
     node(){
         checkout scm
@@ -946,10 +952,11 @@ pipeline {
                                 beforeInput true
                             }
                             steps{
+                                get_packaging_scripts()
                                 unstash 'PYTHON_PACKAGES'
                                 script{
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/make_standalone.sh ${wheel}"
+                                        sh "./contrib/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt"
                                     }
                                 }
                             }
@@ -984,9 +991,10 @@ pipeline {
                             }
                             steps{
                                 script{
+                                    get_packaging_scripts()
                                     unstash 'PYTHON_PACKAGES'
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/make_standalone.sh ${wheel}"
+                                        sh "./speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt"
                                     }
                                 }
                             }
@@ -1023,14 +1031,11 @@ pipeline {
                             steps{
                                 unstash 'PYTHON_PACKAGES'
                                 script{
+                                    get_packaging_scripts()
                                     findFiles(glob: 'dist/*.whl').each{
-                                        powershell(
-                                            label: "Create standalone windows version",
-                                            script: """Invoke-WebRequest -URI https://www.python.org/ftp/python/${BUNDLED_PYTHON_VERSION}/python-${BUNDLED_PYTHON_VERSION}-embed-amd64.zip -OutFile python-${BUNDLED_PYTHON_VERSION}-embed-amd64.zip
-                                                       python -m venv venv --upgrade-deps
-                                                       venv\\Scripts\\pip install cmake pkginfo
-                                                       venv\\Scripts\\python contrib\\make_standalone_windows.py ${it} python-${BUNDLED_PYTHON_VERSION}-embed-amd64.zip -r requirements.txt
-                                                    """
+                                        bat(
+                                            label: 'Create standalone windows version',
+                                            script: "speedwagon_scripts/make_standalone.bat --base-python-path \"py -3.11\" --venv-path .\\venv ${it} -r requirements.txt"
                                         )
                                     }
                                 }
