@@ -466,37 +466,6 @@ def getMacDevpiTestStages(packageName, packageVersion, pythonVersions, devpiServ
 }
 
 
-def sanitize_chocolatey_version(version){
-    script{
-        def dot_to_slash_pattern = '(?<=\\d)\\.?(?=(dev|b|a|rc|post)(\\d)?)'
-
-//        def rc_pattern = "(?<=\d(\.?))rc((?=\d)?)"
-        def dashed_version = version.replaceFirst(dot_to_slash_pattern, "-")
-        if ( version =~ /dev/ ) {
-            return version.replace('.dev', "-dev")
-        }
-        dashed_version = version.replaceFirst('\\.post', ".")
-        def dev_pattern = '(?<=\\d(\\.?))dev((?=\\d)?)'
-        if(dashed_version.matches(dev_pattern)){
-            echo "Discovered a development version"
-            return dashed_version.replaceFirst(dev_pattern, "-dev")
-        }
-
-        if(version.matches('(([0-9]+(([.])?))+)b([0-9]+)')){
-            echo 'Discovered a beta version'
-            return dashed_version.replaceFirst('([.]?b)', "-beta")
-        }
-
-        def alpha_pattern = '(?<=\\d(\\.?))a((?=\\d)?)'
-        if(dashed_version.matches(alpha_pattern)){
-            echo "Discovered an Alpha version"
-            return dashed_version.replaceFirst(alpha_pattern, "alpha")
-        }
-        echo "Discovered no special version info"
-        return dashed_version
-    }
-}
-
 
 def get_props(){
     stage('Reading Package Metadata'){
@@ -560,12 +529,10 @@ pipeline {
         booleanParam(name: 'INCLUDE_WINDOWS_X86_64', defaultValue: true, description: 'Include x86_64 architecture for Windows')
         booleanParam(name: 'TEST_PACKAGES', defaultValue: true, description: 'Test Python packages by installing them and running tests on the installed package')
         booleanParam(name: 'PACKAGE_MAC_OS_STANDALONE_DMG', defaultValue: false, description: 'Create a Apple Application Bundle DMG')
-        booleanParam(name: 'PACKAGE_FOR_CHOCOLATEY', defaultValue: false, description: 'Build package for chocolatey package manager')
         booleanParam(name: 'PACKAGE_STANDALONE_WINDOWS_INSTALLER', defaultValue: false, description: 'Create a standalone wix based .msi installer')
         booleanParam(name: 'DEPLOY_DEVPI', defaultValue: false, description: "Deploy to DevPi on ${DEVPI_CONFIG.server}/DS_Jenkins/${env.BRANCH_NAME}")
         booleanParam(name: 'DEPLOY_DEVPI_PRODUCTION', defaultValue: false, description: "Deploy to ${DEVPI_CONFIG.server}/production/release")
         booleanParam(name: 'DEPLOY_PYPI', defaultValue: false, description: 'Deploy to pypi')
-        booleanParam(name: 'DEPLOY_CHOCOLATEY', defaultValue: false, description: 'Deploy to Chocolatey repository')
         booleanParam(name: 'DEPLOY_STANDALONE_PACKAGERS', defaultValue: false, description: 'Deploy standalone packages')
         booleanParam(name: 'DEPLOY_DOCS', defaultValue: false, description: 'Update online documentation')
     }
@@ -879,12 +846,10 @@ pipeline {
             when{
                 anyOf{
                     equals expected: true, actual: params.BUILD_PACKAGES
-                    equals expected: true, actual: params.PACKAGE_FOR_CHOCOLATEY
                     equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
                     equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                     equals expected: true, actual: params.DEPLOY_DEVPI
                     equals expected: true, actual: params.DEPLOY_DEVPI_PRODUCTION
-                    equals expected: true, actual: params.DEPLOY_CHOCOLATEY
                 }
                 beforeAgent true
             }
@@ -1016,10 +981,6 @@ pipeline {
                             }
                         }
                         stage('Windows Installer for x86_64'){
-                            when{
-                                equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
-                                beforeAgent true
-                            }
                             agent {
                                 dockerfile {
                                     filename 'ci/docker/windows/tox/Dockerfile'
@@ -1027,6 +988,9 @@ pipeline {
                                     additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
                                     args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
                                   }
+                            }
+                            when{
+                                equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                             }
                             steps{
                                 unstash 'PYTHON_PACKAGES'
@@ -1054,123 +1018,6 @@ pipeline {
                                             [pattern: 'venv/', type: 'INCLUDE'],
                                         ]
                                     )
-                                }
-                            }
-                        }
-                        stage('Chocolatey'){
-                            when{
-                                anyOf{
-                                    equals expected: true, actual: params.DEPLOY_CHOCOLATEY
-                                    equals expected: true, actual: params.PACKAGE_FOR_CHOCOLATEY
-                                }
-                                beforeInput true
-                            }
-                            stages{
-                                stage('Build Chocolatey Package'){
-                                    agent {
-                                        dockerfile {
-                                            filename 'ci/docker/windows/tox/Dockerfile'
-                                            label 'windows && docker && x86'
-                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
-                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
-                                          }
-                                    }
-                                    stages{
-                                        stage('Building Python Vendored Wheels'){
-                                            steps{
-                                                withEnv(['PY_PYTHON=3.11']) {
-                                                    bat(
-                                                        label: 'Getting dependencies to vendor',
-                                                        script: '''
-                                                            py -m pip install pip --upgrade
-                                                            py -m pip install wheel
-                                                            py -m pip wheel -r requirements/requirements-vendor.txt --no-deps -w .\\deps\\ -i %PIP_EXTRA_INDEX_URL%
-                                                        '''
-                                                    )
-                                                }
-                                                stash includes: 'deps/*.whl', name: 'VENDORED_WHEELS_FOR_CHOCOLATEY'
-                                            }
-                                        }
-                                        stage('Package for Chocolatey'){
-                                            steps{
-                                                unstash 'PYTHON_PACKAGES'
-                                                script {
-                                                    def version = sanitize_chocolatey_version(props.version)
-                                                    findFiles(glob: 'dist/*.whl').each{
-                                                        powershell(
-                                                            label: 'Creating new Chocolatey package',
-                                                            script: """contrib/make_chocolatey.ps1 `
-                                                                        -PackageName 'Speedwagon_uiucprescon' `
-                                                                        -PackageSummary \"${props.description}\" `
-                                                                        -StartMenuLinkName 'Speedwagon (UIUC Prescon Prerelease)' `
-                                                                        -PackageVersion ${props.version} `
-                                                                        -PackageMaintainer \"${props.maintainers[0].name}\" `
-                                                                        -Wheel ${it.path} `
-                                                                        -DependenciesDir '.\\deps' `
-                                                                        -Requirements '.\\requirements\\requirements-freeze.txt' `
-                                                                    """
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            post{
-                                                always{
-                                                    archiveArtifacts artifacts: 'packages/**/*.nuspec,packages/*.nupkg'
-                                                    stash includes: 'packages/*.nupkg', name: 'CHOCOLATEY_PACKAGE'
-                                                }
-                                                cleanup{
-                                                    cleanWs(
-                                                        deleteDirs: true,
-                                                        patterns: [
-                                                            [pattern: 'packages/', type: 'INCLUDE']
-                                                            ]
-                                                        )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                stage('Testing Chocolatey Package'){
-                                    agent {
-                                        dockerfile {
-                                            filename 'ci/docker/windows/tox/Dockerfile'
-                                            label 'windows && docker && x86'
-                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
-                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
-                                          }
-                                    }
-                                    stages{
-                                        stage('Install Chocolatey Package'){
-                                            steps{
-                                                unstash 'CHOCOLATEY_PACKAGE'
-                                                script{
-                                                    def version = sanitize_chocolatey_version(props.version)
-
-                                                    powershell(script: "choco install speedwagon_uiucprescon -y -dv  --version=${sanitize_chocolatey_version(props.version)} -s \'./packages/;CHOCOLATEY_SOURCE;chocolatey\' --no-progress")
-
-
-                                                }
-                                            }
-                                        }
-                                        stage('Verify Installed Package'){
-                                            steps{
-                                                powershell(
-                                                    label: 'Checking everything installed correctly',
-                                                    script: 'contrib/ensure_installed_property.ps1 -StartMenuShortCut "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestSpeedwagonVersion -TestInChocolateyList speedwagon_uiucprescon'
-                                                )
-                                            }
-                                        }
-                                        stage('Uninstall Chocolatey Package'){
-                                            steps{
-                                                powershell(script: 'choco uninstall speedwagon_uiucprescon -y')
-                                            }
-                                        }
-                                        stage('Verify Uninstalled Package'){
-                                            steps{
-                                                powershell(script: 'contrib/ensure_uninstalled.ps1 -StartMenuShortCutRemoved "Speedwagon\\Speedwagon (UIUC Prescon Prerelease).lnk" -TestInChocolateyList speedwagon_uiucprescon')
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -1427,7 +1274,6 @@ pipeline {
             when{
                 anyOf {
                     equals expected: true, actual:  params.DEPLOY_PYPI
-                    equals expected: true, actual:  params.DEPLOY_CHOCOLATEY
                     equals expected: true, actual:  params.DEPLOY_STANDALONE_PACKAGERS
                     equals expected: true, actual:  params.DEPLOY_DOCS
                 }
@@ -1485,39 +1331,6 @@ pipeline {
                         }
                     }
                 }
-                stage('Deploy to Chocolatey') {
-                    when{
-                        equals expected: true, actual: params.DEPLOY_CHOCOLATEY
-                        beforeInput true
-                        beforeAgent true
-                    }
-                    agent {
-                        dockerfile {
-                            filename 'ci/docker/windows/tox/Dockerfile'
-                            label 'windows && docker && x86'
-                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
-                          }
-                    }
-                    options{
-                        timeout(time: 1, unit: 'DAYS')
-                        retry(3)
-                    }
-                    input {
-                        message 'Deploy to Chocolatey server'
-                        id 'CHOCOLATEY_DEPLOYMENT'
-                        parameters {
-                            choice(
-                                choices: getChocolateyServers(),
-                                description: 'Chocolatey Server to deploy to',
-                                name: 'CHOCOLATEY_SERVER'
-                            )
-                        }
-                    }
-                    steps{
-                        unstash 'CHOCOLATEY_PACKAGE'
-                        deploy_to_chocolatey(CHOCOLATEY_SERVER)
-                    }
-                }
                 stage('Deploy Online Documentation') {
                     when{
                         equals expected: true, actual: params.DEPLOY_DOCS
@@ -1567,7 +1380,6 @@ pipeline {
                         beforeAgent true
                         beforeInput true
                     }
-                    agent any
                     input {
                         message 'Upload to Nexus server?'
                         parameters {
@@ -1580,55 +1392,60 @@ pipeline {
                             string defaultValue: "speedwagon_uiuc/${props.version}", description: 'subdirectory to store artifact', name: 'archiveFolder'
                         }
                     }
-                    options {
-                        skipDefaultCheckout(true)
-                    }
                     stages{
-                        stage('Include Mac Bundle Installer for Deployment'){
-                            when{
-                                allOf{
-                                    equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-                                    anyOf{
-                                        equals expected: true, actual: params.INCLUDE_MACOS_X86_64
-                                        equals expected: true, actual: params.INCLUDE_MACOS_ARM
+                        stage('Deploy Installers'){
+                            agent any
+                            options {
+                                skipDefaultCheckout(true)
+                            }
+                            stages{
+                                stage('Include Mac Bundle Installer for Deployment'){
+                                    when{
+                                        allOf{
+                                            equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+                                            anyOf{
+                                                equals expected: true, actual: params.INCLUDE_MACOS_X86_64
+                                                equals expected: true, actual: params.INCLUDE_MACOS_ARM
 
+                                            }
+                                        }
+                                    }
+                                    steps {
+                                        script{
+                                            if(params.INCLUDE_MACOS_X86_64){
+                                                unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                            }
+                                            if(params.INCLUDE_MACOS_ARM){
+                                                unstash 'APPLE_APPLICATION_BUNDLE_M1'
+                                            }
+                                        }
+                                    }
+                                }
+                                stage('Include Windows Installer(s) for Deployment'){
+                                    when{
+                                        equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
+                                    }
+                                    steps {
+                                        unstash 'STANDALONE_WINDOWS_INSTALLER'
+                                    }
+                                }
+                                stage('Deploy'){
+                                    steps {
+                                        unstash 'SPEEDWAGON_DOC_PDF'
+                                        deployStandalone('dist/*.msi,dist/*.exe,dist/*.zip,dist/*.tar.gz,dist/docs/*.pdf,dist/*.dmg', "${SERVER_URL}/${archiveFolder}")
                                     }
                                 }
                             }
-                            steps {
-                                script{
-                                    if(params.INCLUDE_MACOS_X86_64){
-                                        unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
-                                    }
-                                    if(params.INCLUDE_MACOS_ARM){
-                                        unstash 'APPLE_APPLICATION_BUNDLE_M1'
-                                    }
+                            post{
+                                cleanup{
+                                    cleanWs(
+                                        deleteDirs: true,
+                                        patterns: [
+                                            [pattern: 'dist.*', type: 'INCLUDE']
+                                        ]
+                                    )
                                 }
                             }
-                        }
-                        stage('Include Windows Installer(s) for Deployment'){
-                            when{
-                                equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
-                            }
-                            steps {
-                                unstash 'STANDALONE_WINDOWS_INSTALLER'
-                            }
-                        }
-                        stage('Deploy'){
-                            steps {
-                                unstash 'SPEEDWAGON_DOC_PDF'
-                                deployStandalone('dist/*.msi,dist/*.exe,dist/*.zip,dist/*.tar.gz,dist/docs/*.pdf,dist/*.dmg', "${SERVER_URL}/${archiveFolder}")
-                            }
-                        }
-                    }
-                    post{
-                        cleanup{
-                            cleanWs(
-                                deleteDirs: true,
-                                patterns: [
-                                    [pattern: 'dist.*', type: 'INCLUDE']
-                                ]
-                            )
                         }
                     }
                 }

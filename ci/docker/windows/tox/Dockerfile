@@ -65,8 +65,6 @@ RUN Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force ;`
     Write-Host "Updated path to = $env:Path";`
     c:\temp\verify_installed_correctly.ps1
 
-COPY packaging/choco_package_template/speedwagon C:\ProgramData\chocolatey\templates\speedwagon
-
 COPY --from=certsgen c:/roots.sst roots.sst
 RUN certutil -addstore -f root roots.sst ; `
     del roots.sst
