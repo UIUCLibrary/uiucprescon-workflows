@@ -7,4 +7,4 @@ uiucprescon.images==0.0.5
 uiucprescon.imagevalidate==0.1.9.post3
 uiucprescon.ocr==0.1.4.post2
 uiucprescon.packager==0.2.15
-speedwagon==0.4.0a1
+speedwagon==0.4.0b8
