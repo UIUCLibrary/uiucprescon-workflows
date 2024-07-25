@@ -16,6 +16,7 @@ def deployStandalone(glob, url) {
                 def encodedUrlFileName = new URI(null, null, it.name, null).toASCIIString()
                 def putResponse = httpRequest authentication: NEXUS_CREDS, httpMode: 'PUT', uploadFile: it.path, url: "${url}/${encodedUrlFileName}", wrapAsMultipart: false
                 echo "http request response: ${putResponse.content}"
+                echo "Deployed ${it} -> SHA256: ${sha256(it.path)}"
             } catch(Exception e){
                 echo "${e}"
                 throw e;
