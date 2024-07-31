@@ -1,0 +1,3 @@
+[submodule "contrib/speedwagon_scripts"]
+	path = contrib/speedwagon_scripts
+	url = https://github.com/UIUCLibrary/speedwagon_scripts.git

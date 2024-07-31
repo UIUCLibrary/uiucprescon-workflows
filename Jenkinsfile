@@ -362,11 +362,6 @@ def testPythonPackages(){
     }
 }
 
-def get_packaging_scripts(){
-    dir('speedwagon_scripts'){
-        git branch: 'main', url: 'https://github.com/UIUCLibrary/speedwagon_scripts.git'
-    }
-}
 
 def getMacDevpiTestStages(packageName, packageVersion, pythonVersions, devpiServer, devpiCredentialsId, devpiIndex) {
     node(){
@@ -918,11 +913,10 @@ pipeline {
                                 beforeInput true
                             }
                             steps{
-                                get_packaging_scripts()
                                 unstash 'PYTHON_PACKAGES'
                                 script{
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt"
+                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt"
                                     }
                                 }
                             }
@@ -957,10 +951,9 @@ pipeline {
                             }
                             steps{
                                 script{
-                                    get_packaging_scripts()
                                     unstash 'PYTHON_PACKAGES'
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt"
+                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt"
                                     }
                                 }
                             }
@@ -996,11 +989,10 @@ pipeline {
                             steps{
                                 unstash 'PYTHON_PACKAGES'
                                 script{
-                                    get_packaging_scripts()
                                     findFiles(glob: 'dist/*.whl').each{
                                         bat(
                                             label: 'Create standalone windows version',
-                                            script: "speedwagon_scripts/make_standalone.bat --base-python-path \"py -3.11\" --venv-path .\\venv ${it} -r requirements.txt"
+                                            script: "./contrib/speedwagon_scripts/make_standalone.bat --base-python-path \"py -3.11\" --venv-path .\\venv ${it} -r requirements.txt"
                                         )
                                     }
                                 }
