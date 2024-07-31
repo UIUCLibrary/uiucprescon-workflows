@@ -480,6 +480,17 @@ def get_props(){
     }
 }
 
+def getMsiInstallerPath(){
+    def msiFiles = findFiles(glob: 'dist/*.msi')
+    if(msiFiles.size()==0){
+        error 'No .msi file found in ./dist/'
+    }
+    if(msiFiles.size()>1){
+        error 'more than one .msi file found ./dist/'
+    }
+    return msiFiles[0].path
+}
+
 def buildSphinx(){
     def sphinx  = load('ci/jenkins/scripts/sphinx.groovy')
     sh(script: '''mkdir -p logs
@@ -899,6 +910,9 @@ pipeline {
                     }
                 }
                 stage('End-user packages'){
+                    environment {
+                        APP_NAME="Speedwagon UIUC Prescon"
+                    }
                     parallel{
                         stage('Mac Application Bundle x86_64'){
                             agent{
@@ -953,7 +967,7 @@ pipeline {
                                 script{
                                     unstash 'PYTHON_PACKAGES'
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt"
+                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt --app-name=$APP_NAME"
                                     }
                                 }
                             }
@@ -975,42 +989,119 @@ pipeline {
                             }
                         }
                         stage('Windows Installer for x86_64'){
-                            agent {
-                                dockerfile {
-                                    filename 'ci/docker/windows/tox/Dockerfile'
-                                    label 'windows && docker && x86'
-                                    additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
-                                    args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
-                                  }
-                            }
                             when{
                                 equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                             }
-                            steps{
-                                unstash 'PYTHON_PACKAGES'
-                                script{
-                                    findFiles(glob: 'dist/*.whl').each{
-                                        bat(
-                                            label: 'Create standalone windows version',
-                                            script: "./contrib/speedwagon_scripts/make_standalone.bat --base-python-path \"py -3.11\" --venv-path .\\venv ${it} -r requirements.txt"
-                                        )
+                            stages{
+                                stage('Create .msi Installer'){
+                                    agent {
+                                        dockerfile {
+                                            filename 'ci/docker/windows/tox/Dockerfile'
+                                            label 'windows && docker && x86_64'
+                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
+                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
+                                          }
+                                    }
+                                    steps{
+                                        unstash 'PYTHON_PACKAGES'
+                                        script{
+                                            findFiles(glob: 'dist/*.whl').each{
+                                                bat(
+                                                    label: 'Create standalone windows version',
+                                                    script: "./contrib/speedwagon_scripts/make_standalone.bat --base-python-path \"py -3.11\" --venv-path .\\venv ${it} -r requirements.txt --app-name=\"%APP_NAME%\""
+                                                )
+                                            }
+                                        }
+                                    }
+                                    post{
+                                        success{
+                                            archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
+                                            stash includes: 'dist/*.msi', name: 'STANDALONE_WINDOWS_X86_64_INSTALLER'
+                                        }
+                                        cleanup{
+                                            cleanWs(
+                                                deleteDirs: true,
+                                                patterns: [
+                                                    [pattern: 'build/', type: 'INCLUDE'],
+                                                    [pattern: 'dist/', type: 'INCLUDE'],
+                                                    [pattern: 'venv/', type: 'INCLUDE'],
+                                                ]
+                                            )
+                                        }
                                     }
                                 }
-                            }
-                            post{
-                                success{
-                                    archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
-                                    stash includes: 'dist/*.msi', name: 'STANDALONE_WINDOWS_INSTALLER'
-                                }
-                                cleanup{
-                                    cleanWs(
-                                        deleteDirs: true,
-                                        patterns: [
-                                            [pattern: 'build/', type: 'INCLUDE'],
-                                            [pattern: 'dist/', type: 'INCLUDE'],
-                                            [pattern: 'venv/', type: 'INCLUDE'],
-                                        ]
-                                    )
+                                stage('Test .msi Installer'){
+                                    agent {
+                                        docker {
+                                            args '-u ContainerAdministrator'
+                                            image 'mcr.microsoft.com/windows/servercore:ltsc2019'
+                                            label 'windows && docker && x86_64'
+                                        }
+                                    }
+                                    options {
+                                        skipDefaultCheckout true
+                                    }
+                                    stages{
+                                        stage('Checkout Installer'){
+                                            steps{
+                                                unstash 'STANDALONE_WINDOWS_X86_64_INSTALLER'
+                                            }
+                                        }
+                                        stage('Install msi file'){
+                                            environment {
+                                                MSI_INSTALLER = getMsiInstallerPath()
+                                            }
+                                            steps{
+                                                powershell(
+                                                    label: 'Installing msi file',
+                                                    script: '''[void](New-Item -ItemType Directory -Force -Path logs)
+                                                               Write-Host "Installing $Env:MSI_INSTALLER"
+                                                               msiexec /i $Env:MSI_INSTALLER /qn /norestart /L*v! logs\\msiexec.log
+                                                               '''
+                                                )
+                                            }
+                                            post{
+                                                success{
+                                                    powershell(
+                                                        label: 'Show installed applications',
+                                                        script: 'Get-WmiObject -Class Win32_Product'
+                                                    )
+                                                }
+                                                always{
+                                                    archiveArtifacts artifacts: 'logs/msiexec.log'
+                                                }
+                                            }
+                                        }
+                                        stage('Verify Installed'){
+                                            steps{
+                                                checkout scm
+                                                powershell('./contrib/ensure_installed_property.ps1')
+                                            }
+                                        }
+                                        stage('Uninstall'){
+                                            steps{
+                                                powershell(
+                                                    label: 'Uninstall',
+                                                    script: '''$app = Get-WmiObject -Class Win32_Product -Filter "Name = \"\"$Env:APP_NAME\"\""
+                                                               Write-Host "Uninstalling $app"
+                                                               $app.Uninstall()
+                                                               Get-WmiObject -Class Win32_Product
+                                                            '''
+                                               )
+                                               powershell('./contrib/ensure_uninstalled.ps1 --StartMenuShortCutRemoved')
+                                            }
+                                        }
+                                    }
+                                    post{
+                                        cleanup{
+                                            cleanWs(
+                                                deleteDirs: true,
+                                                patterns: [
+                                                    [pattern: 'dist/', type: 'INCLUDE'],
+                                                ]
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1419,7 +1510,7 @@ pipeline {
                                         equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                                     }
                                     steps {
-                                        unstash 'STANDALONE_WINDOWS_INSTALLER'
+                                        unstash 'STANDALONE_WINDOWS_X86_64_INSTALLER'
                                     }
                                 }
                                 stage('Deploy'){
