@@ -33,10 +33,12 @@ def test_initial_task_creates_task():
         user_args=user_args
     )
 
-    input_arg = user_args['input']
-    assert \
+    in_arg = user_args['input']
+    assert (
         mock_builder.add_subtask.called is True and \
-        mock_builder.add_subtask.call_args_list[0][0][0]._root == input_arg
+        mock_builder.add_subtask.call_args_list[0][0][0].search_path == in_arg
+    )
+
 
 
 @pytest.mark.skip("todo: update to use table_data_editor instead")
@@ -99,9 +101,17 @@ def test_discover_task_metadata_one_per_package(
     workflow, user_options = unconfigured_workflow
     number_of_fake_packages = 10
 
-    initial_results = []
+    initial_results = [
+        speedwagon.tasks.Result(
+            data=[
+                MagicMock() for _ in range(number_of_fake_packages)
+            ],
+            source=Mock()
+        )
+    ]
     additional_data = {
-        "packages": [MagicMock() for _ in range(number_of_fake_packages)]
+        # 'title_pages': {}
+        # "packages": [MagicMock() for _ in range(number_of_fake_packages)]
     }
 
     new_task_md = workflow.discover_task_metadata(
@@ -147,7 +157,10 @@ def test_generate_report_creates_a_report(unconfigured_workflow):
 def test_find_packages_task(monkeypatch):
     root_path = "some/sample/root"
 
-    task = workflow_hathiprep.FindHathiPackagesTask(root=root_path)
+    task = workflow_hathiprep.FindHathiPackagesTask(
+        search_path=root_path,
+        image_type="JPEG 2000"
+    )
 
     task.log = Mock()
 
@@ -191,7 +204,9 @@ def test_get_additional_info_packages(monkeypatch):
         )
 
         extra_info = workflow.get_additional_info(
-            user_request_factory, options=user_args, pretask_results=["something"]
+            user_request_factory,
+            options=user_args,
+            pretask_results=["something"]
         )
         assert "packages" in extra_info, '"packages" key not found in extra_info'
 
@@ -212,6 +227,9 @@ def test_data_gathering_callback():
                 name="instance",
                 files=['image1.jp2']
             )
+        },
+        metadata={
+            Metadata.ID: "12347",
         }
     )
     item_2 = MagicMock(
@@ -221,6 +239,9 @@ def test_data_gathering_callback():
                 name="instance",
                 files=['image2.jp2']
             )
+        },
+        metadata={
+            Metadata.ID: "12348",
         }
     )
     package_1.__iter__.return_value = [

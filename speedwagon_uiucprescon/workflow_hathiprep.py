@@ -1,14 +1,16 @@
 """Hathi Prep Workflow."""
 from __future__ import annotations
+
 import itertools
 import os
 from typing import List, Sequence, Dict, Optional, Union, Mapping, TypedDict
-import sys
 
 import typing
 
-from uiucprescon.packager.packages import collection
+from uiucprescon.packager.packages import collection, HathiJp2, HathiTiff
 from uiucprescon.packager.common import Metadata
+from uiucprescon.packager import PackageFactory
+
 
 import speedwagon
 import speedwagon.tasks.packaging
@@ -17,12 +19,6 @@ from speedwagon.frontend.interaction import UserRequestFactory, DataItem
 from speedwagon import validators
 
 from speedwagon_uiucprescon import tasks
-
-if typing.TYPE_CHECKING:
-    if sys.version_info >= (3, 11):
-        from typing import Never
-    else:
-        from typing_extensions import Never
 
 __all__ = ['HathiPrepWorkflow']
 
@@ -38,18 +34,22 @@ JobArgs = TypedDict(
     "JobArgs",
     {
         "package_id": str,
-        "title_page": str,
+        "title_page": Optional[str],
         "source_path": str
     }
 )
 
 
-class TitlePageResults(typing.TypedDict):
-    title_pages: Dict[str, Optional[str]]
+TitlePageResults = typing.TypedDict(
+    'TitlePageResults',
+    {
+        'title_pages': Dict[str, Optional[str]]
+    }
+)
 
 
 def data_gathering_callback(
-    results,  # pylint: disable=unused-argument
+    results: Mapping[str, object],  # pylint: disable=unused-argument
     pretask_results: List[speedwagon.tasks.Result[List[collection.Package]]]
 ) -> List[Sequence[DataItem]]:
     rows: List[Sequence[DataItem]] = []
@@ -57,13 +57,14 @@ def data_gathering_callback(
     for package in values.data:
         title_page = DataItem(
             name="Title Page",
-            value=typing.cast(str, package.metadata[Metadata.TITLE_PAGE])
+            value=typing.cast(str, package.metadata.get(Metadata.TITLE_PAGE))
         )
         title_page.editable = True
         files = []
         for i in package:
             for instance in i.instantiations.values():
                 files += [os.path.basename(f) for f in instance.files]
+        files.sort()
         title_page.possible_values = files
 
         rows.append(
@@ -124,34 +125,37 @@ class HathiPrepWorkflow(speedwagon.Workflow[UserArgs]):
             package_type,
         ]
 
-    def initial_task(self,
-                     task_builder: "speedwagon.tasks.tasks.TaskBuilder",
-                     user_args: UserArgs
-                     ) -> None:
+    def initial_task(
+        self,
+        task_builder: "speedwagon.tasks.tasks.TaskBuilder",
+        user_args: UserArgs
+    ) -> None:
         """Look for any packages located in the input argument directory.
 
         Args:
-            task_builder:
-            **user_args:
+            task_builder: task builder object provided by speedwagon runtime
+            user_args: User selected options
 
         """
         root = user_args['input']
-        task_builder.add_subtask(FindHathiPackagesTask(root))
+        task_builder.add_subtask(
+            FindHathiPackagesTask(root, user_args['Image File Type'])
+        )
 
     def discover_task_metadata(
         self,
         initial_results: List[  # pylint: disable=unused-argument
-            speedwagon.tasks.Result[Never]
+            speedwagon.tasks.Result[collection.Package]
         ],
-        additional_data: Mapping[str, Sequence[collection.Package]],
+        additional_data: Mapping[str, Mapping[str, str]],
         user_args: UserArgs,  # pylint: disable=unused-argument
     ) -> List[JobArgs]:
         """Get enough information about the packages to create a new job.
 
         Args:
-            initial_results:
-            additional_data:
-            **user_args:
+            initial_results: contains the packages discovered
+            additional_data: title pages defined by user
+            user_args: User arguments for the job
 
         Returns:
             Returns a dictionary containing the title page, package id, and
@@ -159,16 +163,22 @@ class HathiPrepWorkflow(speedwagon.Workflow[UserArgs]):
 
         """
         jobs: List[JobArgs] = []
-        packages: Sequence[collection.Package] = additional_data["packages"]
+        packages =\
+            typing.cast(Sequence[collection.Package], initial_results[0].data)
+
+        package_title_pages =\
+            typing.cast(
+                Mapping[str, str],
+                additional_data.get('title_pages', {})
+            )
+
         for package in packages:
+            package_identifier =\
+                typing.cast(str, package.metadata[Metadata.ID])
+
             job: JobArgs = {
-                "package_id":
-                    typing.cast(str, package.metadata[Metadata.ID]),
-                "title_page":
-                    typing.cast(
-                        str,
-                        package.metadata[Metadata.TITLE_PAGE]
-                    ),
+                "package_id": package_identifier,
+                "title_page": package_title_pages.get(package_identifier),
                 "source_path":
                     typing.cast(
                         str,
@@ -187,8 +197,8 @@ class HathiPrepWorkflow(speedwagon.Workflow[UserArgs]):
         """Add yaml and checksum tasks.
 
         Args:
-            task_builder:
-            **job_args:
+            task_builder: task builder object
+            job_args: job arguments.
 
         """
         title_page = job_args['title_page']
@@ -254,8 +264,8 @@ class HathiPrepWorkflow(speedwagon.Workflow[UserArgs]):
         """Generate a report about prepping work.
 
         Args:
-            results:
-            **user_args:
+            results: Results of Checksums and yaml file tasks
+            user_args: User arguments
 
         Returns:
             Returns a string explaining the prepped objects.
@@ -295,17 +305,27 @@ class HathiPrepWorkflow(speedwagon.Workflow[UserArgs]):
                f"\n  {num_yaml_files} meta.yml files"
 
 
-class FindHathiPackagesTask(tasks.AbsFindPackageTask):
+class FindHathiPackagesTask(speedwagon.tasks.Subtask[List[typing.Any]]):
+    image_types = {
+        "TIFF": HathiTiff(),
+        "JPEG 2000": HathiJp2()
+    }
 
-    def find_packages(self, search_path: str) -> List[str]:
-        def find_dirs(item: os.DirEntry[str]) -> bool:
+    def __init__(self, search_path: str, image_type: str) -> None:
+        super().__init__()
+        self.image_type = image_type
+        self.search_path = search_path
 
-            return bool(item.is_dir())
+    def locate_packages(self) -> Sequence[collection.Package]:
+        package_factory = PackageFactory(self.image_types[self.image_type])
+        return list(package_factory.locate_packages(self.search_path))
 
-        directories = []
+    @staticmethod
+    def _package_sortable_key(package: collection.Package) -> str:
+        return typing.cast(str, package.metadata[Metadata.ID])
 
-        for directory in filter(find_dirs, os.scandir(search_path)):
-            directories.append(directory.path)
-            self.log(f"Located {directory.name}")
-
-        return directories
+    def work(self) -> bool:
+        self.set_results(
+            sorted(self.locate_packages(), key=self._package_sortable_key)
+        )
+        return True

@@ -25,7 +25,12 @@ class MakeMetaYamlTask(speedwagon.tasks.Subtask[MakeMetaYamlReport]):
 
     name = "Create meta.yml"
 
-    def __init__(self, package_id: str, source: str, title_page: str) -> None:
+    def __init__(
+        self,
+        package_id: str,
+        source: str,
+        title_page: Optional[str]
+    ) -> None:
         """Create a YAML creation task."""
         super().__init__()
         self._source = source
