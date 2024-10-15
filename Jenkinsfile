@@ -67,6 +67,13 @@ def deploy_to_chocolatey(ChocolateyServer){
     }
 }
 
+def getVersion(){
+    node(){
+        checkout scm
+        return readTOML( file: 'pyproject.toml')['project']
+    }
+}
+
 
 def getStandAloneStorageServers(){
     retry(conditions: [agent()], count: 3) {
@@ -345,25 +352,6 @@ def testPythonPackages(){
 }
 
 
-
-
-def get_props(){
-    stage('Reading Package Metadata'){
-        node('docker && linux') {
-            checkout scm
-            docker.image('python').inside {
-                def packageMetadata = readJSON text: sh(returnStdout: true, script: 'python -c \'import tomllib;print(tomllib.load(open("pyproject.toml", "rb"))["project"])\'').trim()
-                echo """Metadata:
-
-    Name      ${packageMetadata.name}
-    Version   ${packageMetadata.version}
-    """
-                return packageMetadata
-            }
-        }
-    }
-}
-
 def getMsiInstallerPath(){
     def msiFiles = findFiles(glob: 'dist/*.msi')
     if(msiFiles.size()==0){
@@ -403,7 +391,6 @@ def buildSphinx(){
     )
 }
 
-props = get_props()
 
 pipeline {
     agent none
@@ -449,7 +436,10 @@ pipeline {
                 }
                 success{
                     stash includes: 'dist/docs/*.pdf', name: 'SPEEDWAGON_DOC_PDF'
-                    zip archive: true, dir: 'build/docs/html', glob: '', zipFile: "dist/${props.name}-${props.version}.doc.zip"
+                    script{
+                        def props = readTOML( file: 'pyproject.toml')['project']
+                        zip archive: true, dir: 'build/docs/html', glob: '', zipFile: "dist/${props.name}-${props.version}.doc.zip"
+                    }
                     stash includes: 'dist/*.doc.zip,build/docs/html/**', name: 'DOCS_ARCHIVE'
                     archiveArtifacts artifacts: 'dist/docs/*.pdf'
                 }
@@ -640,6 +630,7 @@ pipeline {
                                         installationName: 'sonarcloud',
                                         credentialsId: params.SONARCLOUD_TOKEN,
                                     ]
+                                    def props = readTOML( file: 'pyproject.toml')['project']
                                     milestone label: 'sonarcloud'
                                     if (env.CHANGE_ID){
                                         sonarqube.submitToSonarcloud(
@@ -693,38 +684,44 @@ pipeline {
                     options {
                         lock(env.JOB_URL)
                     }
-                    steps {
-                        script{
-                            def windowsJobs
-                            def linuxJobs
-                            stage('Scanning Tox Environments'){
-                                parallel(
-                                    'Linux':{
-                                        linuxJobs = getToxTestsParallel(
-                                                envNamePrefix: 'Tox Linux',
-                                                label: 'linux && docker',
-                                                dockerfile: 'ci/docker/linux/tox/Dockerfile',
-                                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg PIP_DOWNLOAD_CACHE=/.cache/pip --build-arg UV_CACHE_DIR=/.cache/uv',
-                                                dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip -v uvcache_speedwagon_uiucprescon_workflows:/.cache/uv',
-                                                retry: 2
-                                            )
-                                    },
-                                    'Windows':{
-                                        windowsJobs = getToxTestsParallel(
-                                                envNamePrefix: 'Tox Windows',
-                                                label: 'windows && docker',
-                                                dockerfile: 'ci/docker/windows/tox/Dockerfile',
-                                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv',
-                                                dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv',
-                                                retry: 2
-
-                                            )
-                                    },
-                                    failFast: true
-                                )
+                    parallel{
+                        stage('Linux'){
+                            when{
+                                expression {return nodesByLabel('linux && docker && x86').size() > 0}
                             }
-                            stage('Run Tox'){
-                                parallel(windowsJobs + linuxJobs)
+                            steps{
+                                script{
+                                    parallel(
+                                        getToxTestsParallel(
+                                            envNamePrefix: 'Tox Linux',
+                                            label: 'linux && docker',
+                                            dockerfile: 'ci/docker/linux/tox/Dockerfile',
+                                            dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg PIP_DOWNLOAD_CACHE=/.cache/pip --build-arg UV_CACHE_DIR=/.cache/uv',
+                                            dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:/.cache/pip -v uvcache_speedwagon_uiucprescon_workflows:/.cache/uv',
+                                            retry: 2
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                        stage('Windows'){
+                            when{
+                                expression {return nodesByLabel('windows && docker && x86').size() > 0}
+                            }
+                            steps{
+                                script{
+                                    parallel(
+                                        getToxTestsParallel(
+                                            envNamePrefix: 'Tox Windows',
+                                            label: 'windows && docker',
+                                            dockerfile: 'ci/docker/windows/tox/Dockerfile',
+                                            dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv',
+                                            dockerRunArgs: '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv',
+                                            retry: 2
+
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
@@ -1108,7 +1105,7 @@ pipeline {
                                 description: 'Url to upload artifact.',
                                 name: 'SERVER_URL'
                             )
-                            string defaultValue: "speedwagon_uiuc/${props.version}", description: 'subdirectory to store artifact', name: 'archiveFolder'
+                            string defaultValue: "speedwagon_uiuc/${getVersion()}", description: 'subdirectory to store artifact', name: 'archiveFolder'
                         }
                     }
                     stages{
