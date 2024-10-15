@@ -67,6 +67,13 @@ def deploy_to_chocolatey(ChocolateyServer){
     }
 }
 
+def getVersion(){
+    node(){
+        checkout scm
+        return readTOML( file: 'pyproject.toml')['project']
+    }
+}
+
 
 def getStandAloneStorageServers(){
     retry(conditions: [agent()], count: 3) {
@@ -345,25 +352,6 @@ def testPythonPackages(){
 }
 
 
-
-
-def get_props(){
-    stage('Reading Package Metadata'){
-        node('docker && linux') {
-            checkout scm
-            docker.image('python').inside {
-                def packageMetadata = readJSON text: sh(returnStdout: true, script: 'python -c \'import tomllib;print(tomllib.load(open("pyproject.toml", "rb"))["project"])\'').trim()
-                echo """Metadata:
-
-    Name      ${packageMetadata.name}
-    Version   ${packageMetadata.version}
-    """
-                return packageMetadata
-            }
-        }
-    }
-}
-
 def getMsiInstallerPath(){
     def msiFiles = findFiles(glob: 'dist/*.msi')
     if(msiFiles.size()==0){
@@ -403,7 +391,6 @@ def buildSphinx(){
     )
 }
 
-props = get_props()
 
 pipeline {
     agent none
@@ -449,7 +436,10 @@ pipeline {
                 }
                 success{
                     stash includes: 'dist/docs/*.pdf', name: 'SPEEDWAGON_DOC_PDF'
-                    zip archive: true, dir: 'build/docs/html', glob: '', zipFile: "dist/${props.name}-${props.version}.doc.zip"
+                    script{
+                        def props = readTOML( file: 'pyproject.toml')['project']
+                        zip archive: true, dir: 'build/docs/html', glob: '', zipFile: "dist/${props.name}-${props.version}.doc.zip"
+                    }
                     stash includes: 'dist/*.doc.zip,build/docs/html/**', name: 'DOCS_ARCHIVE'
                     archiveArtifacts artifacts: 'dist/docs/*.pdf'
                 }
@@ -640,6 +630,7 @@ pipeline {
                                         installationName: 'sonarcloud',
                                         credentialsId: params.SONARCLOUD_TOKEN,
                                     ]
+                                    def props = readTOML( file: 'pyproject.toml')['project']
                                     milestone label: 'sonarcloud'
                                     if (env.CHANGE_ID){
                                         sonarqube.submitToSonarcloud(
@@ -1114,7 +1105,7 @@ pipeline {
                                 description: 'Url to upload artifact.',
                                 name: 'SERVER_URL'
                             )
-                            string defaultValue: "speedwagon_uiuc/${props.version}", description: 'subdirectory to store artifact', name: 'archiveFolder'
+                            string defaultValue: "speedwagon_uiuc/${getVersion()}", description: 'subdirectory to store artifact', name: 'archiveFolder'
                         }
                     }
                     stages{
