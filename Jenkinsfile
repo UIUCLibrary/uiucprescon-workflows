@@ -993,20 +993,19 @@ pipeline {
                             stages{
                                 stage('Create .msi Installer'){
                                     agent {
-                                        dockerfile {
-                                            filename 'ci/docker/windows/tox/Dockerfile'
-                                            label 'windows && docker && x86_64'
-                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
-                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
-                                          }
-                                    }
+                                       docker {
+                                           image 'python'
+                                           label 'windows && x86_64 && docker'
+                                           args '--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents --mount source=msvc-runtime,target=c:\\msvc_runtime\\'
+                                       }
+                                   }
                                     steps{
                                         unstash 'PYTHON_PACKAGES'
                                         script{
                                             findFiles(glob: 'dist/*.whl').each{
                                                 bat(
                                                     label: 'Create standalone windows version',
-                                                    script: "./contrib/speedwagon_scripts/make_standalone.bat --base-python-path \"py -3.11\" --venv-path .\\venv ${it} -r requirements.txt --app-name=\"%APP_NAME%\""
+                                                    script: "./contrib/speedwagon_scripts/make_standalone.bat --python-version=3.11 ${it} -r requirements.txt --app-name=\"%APP_NAME%\""
                                                 )
                                             }
                                         }
