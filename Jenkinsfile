@@ -928,7 +928,7 @@ pipeline {
                                 unstash 'PYTHON_PACKAGES'
                                 script{
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt --app-name=\"$APP_NAME\""
+                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements-gui.txt --app-name=$APP_NAME"
                                     }
                                 }
                             }
@@ -965,7 +965,15 @@ pipeline {
                                 script{
                                     unstash 'PYTHON_PACKAGES'
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt --app-name=\"$APP_NAME\""
+                                        withEnv(["WHEEL=${wheel.path}"]){
+//                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt --app-name=$APP_NAME"
+                                            sh """
+                                                python3 -m venv venv
+                                                . ./venv/bin/activate
+                                                pip install uv
+                                                uvx --index-strategy=unsafe-best-match  --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/heads/dev.zip package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
+                                                """
+                                            }
                                     }
                                 }
                             }
@@ -999,14 +1007,32 @@ pipeline {
                                            args '--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents --mount source=msvc-runtime,target=c:\\msvc_runtime\\'
                                        }
                                    }
+                                   environment{
+                                      PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\pipcache'
+                                      UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\uvtools'
+                                      UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\uvpython'
+                                      UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\uvcache'
+                                  }
                                     steps{
                                         unstash 'PYTHON_PACKAGES'
                                         script{
+                                            powershell(
+                                                label:'Get WiX Toolset',
+                                                script: '''Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force
+                                                           Register-PackageSource -Name MyNuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
+                                                           Install-Package -Name wix -Source MyNuGet -Force -ExcludeVersion -RequiredVersion 3.11.2 -Destination .
+                                                       '''
+                                           )
                                             findFiles(glob: 'dist/*.whl').each{
-                                                bat(
-                                                    label: 'Create standalone windows version',
-                                                    script: "./contrib/speedwagon_scripts/make_standalone.bat --python-version=3.11 ${it} -r requirements.txt --app-name=\"%APP_NAME%\""
-                                                )
+                                                withEnv(["WHEEL=${it.path}"]){
+                                                    powershell(
+                                                        label: 'Create standalone windows version',
+                                                        script: '''python -m pip install uv
+                                                                   $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
+                                                                   uvx --verbose --index-strategy=unsafe-best-match  --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/heads/dev.zip package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name=$Env:APP_NAME
+                                                                '''
+                                                    )
+                                                }
                                             }
                                         }
                                     }
