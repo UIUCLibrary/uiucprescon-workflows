@@ -265,9 +265,9 @@ pipeline {
                         beforeAgent true
                     }
                     agent {
-                        dockerfile {
-                            filename 'ci/docker/linux/jenkins/Dockerfile'
-                            label 'linux && docker && x86'
+                        docker{
+                            image 'python'
+                            label 'docker && linux && x86_64' // needed for pysonar-scanner which is x86_64 only as of 0.2.0.520
                             args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
                         }
                     }
@@ -533,6 +533,7 @@ pipeline {
                                 UV_TOOL_DIR='/tmp/uvtools'
                                 UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
                                 UV_CACHE_DIR='/tmp/uvcache'
+                                QT_QPA_PLATFORM='offscreen'
                             }
                             steps{
                                 script{
@@ -1164,7 +1165,7 @@ pipeline {
                         docker{
                             image 'python'
                             label 'docker && linux'
-                            args '--mount source=python-tmp-speedwagon,target=/tmp'
+                            args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
                         }
                     }
                     when{
@@ -1234,12 +1235,19 @@ pipeline {
                         beforeAgent true
                         beforeInput true
                     }
+                     environment{
+                        PIP_CACHE_DIR='/tmp/pipcache'
+                        UV_INDEX_STRATEGY='unsafe-best-match'
+                        UV_TOOL_DIR='/tmp/uvtools'
+                        UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
+                        UV_CACHE_DIR='/tmp/uvcache'
+                    }
                     agent {
-                        dockerfile {
-                            filename 'ci/docker/linux/jenkins/Dockerfile'
-                            label 'linux && docker'
-                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-                          }
+                        docker{
+                            image 'python'
+                            label 'docker && linux'
+                            args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
+                        }
                     }
                     options{
                         timeout(time: 1, unit: 'DAYS')
