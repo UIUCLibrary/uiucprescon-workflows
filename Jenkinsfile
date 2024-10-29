@@ -928,13 +928,12 @@ pipeline {
                                 unstash 'PYTHON_PACKAGES'
                                 script{
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-//                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements-gui.txt --app-name=$APP_NAME"
                                         withEnv(["WHEEL=${wheel.path}"]){
                                         sh """
                                             python3 -m venv venv
                                             . ./venv/bin/activate
                                             pip install uv
-                                            uvx --index-strategy=unsafe-best-match  --with pip --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/heads/dev.zip package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
+                                            uvx --index-strategy=unsafe-best-match  --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
                                             """
                                         }
                                     }
@@ -974,12 +973,11 @@ pipeline {
                                     unstash 'PYTHON_PACKAGES'
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
                                         withEnv(["WHEEL=${wheel.path}"]){
-//                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt --app-name=$APP_NAME"
                                             sh """
                                                 python3 -m venv venv
                                                 . ./venv/bin/activate
                                                 pip install uv
-                                                uvx --index-strategy=unsafe-best-match --with pip --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/heads/dev.zip package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
+                                                uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
                                                 """
                                             }
                                     }
@@ -1038,7 +1036,7 @@ pipeline {
                                                         script: '''python -m pip install uv
                                                                    $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
                                                                    Write-Host "APP_NAME = $Env:APP_NAME"
-                                                                   uvx --verbose --index-strategy=unsafe-best-match --with pip --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/heads/dev.zip package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME"
+                                                                   uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME"
                                                                 '''
                                                     )
                                                 }
@@ -1108,15 +1106,6 @@ pipeline {
                                             steps{
                                                 checkout scm
                                                 powershell('./contrib/ensure_installed_property.ps1')
-                                            }
-                                            post{
-                                                failure{
-                                                    bat 'dir "C:\\Program Files"'
-                                                    bat 'dir "C:\\Program Files\\Speedwagon - UIUC"'
-                                                    bat 'dir "C:\\Program Files\\Speedwagon - UIUC\\Speedwagon!"'
-                                                    bat 'dir "C:\\Program Files\\Speedwagon - UIUC\\Speedwagon!\\_internal"'
-                                                    powershell 'Get-WmiObject -Class Win32_Product'
-                                                }
                                             }
                                         }
                                         stage('Uninstall'){
