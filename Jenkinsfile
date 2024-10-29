@@ -265,9 +265,9 @@ pipeline {
                         beforeAgent true
                     }
                     agent {
-                        dockerfile {
-                            filename 'ci/docker/linux/jenkins/Dockerfile'
-                            label 'linux && docker && x86'
+                        docker{
+                            image 'python'
+                            label 'docker && linux && x86_64' // needed for pysonar-scanner which is x86_64 only as of 0.2.0.520
                             args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
                         }
                     }
@@ -533,6 +533,7 @@ pipeline {
                                 UV_TOOL_DIR='/tmp/uvtools'
                                 UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
                                 UV_CACHE_DIR='/tmp/uvcache'
+                                QT_QPA_PLATFORM='offscreen'
                             }
                             steps{
                                 script{
@@ -909,7 +910,7 @@ pipeline {
                 }
                 stage('End-user packages'){
                     environment {
-                        APP_NAME="Speedwagon UIUC Prescon"
+                        APP_NAME="Speedwagon (UIUC Prescon Edition)"
                     }
                     parallel{
                         stage('Mac Application Bundle x86_64'){
@@ -928,7 +929,14 @@ pipeline {
                                 unstash 'PYTHON_PACKAGES'
                                 script{
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt --app-name=\"$APP_NAME\""
+                                        withEnv(["WHEEL=${wheel.path}"]){
+                                        sh """
+                                            python3 -m venv venv
+                                            . ./venv/bin/activate
+                                            pip install uv
+                                            uvx --index-strategy=unsafe-best-match  --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
+                                            """
+                                        }
                                     }
                                 }
                             }
@@ -965,7 +973,14 @@ pipeline {
                                 script{
                                     unstash 'PYTHON_PACKAGES'
                                     findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                        sh "./contrib/speedwagon_scripts/make_standalone.sh --base-python-path python3.11 --venv-path ./venv ${wheel} -r requirements.txt --app-name=\"$APP_NAME\""
+                                        withEnv(["WHEEL=${wheel.path}"]){
+                                            sh """
+                                                python3 -m venv venv
+                                                . ./venv/bin/activate
+                                                pip install uv
+                                                uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
+                                                """
+                                            }
                                     }
                                 }
                             }
@@ -993,21 +1008,39 @@ pipeline {
                             stages{
                                 stage('Create .msi Installer'){
                                     agent {
-                                        dockerfile {
-                                            filename 'ci/docker/windows/tox/Dockerfile'
-                                            label 'windows && docker && x86_64'
-                                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE --build-arg chocolateyVersion --build-arg PIP_DOWNLOAD_CACHE=c:/users/containeradministrator/appdata/local/pip --build-arg UV_CACHE_DIR=c:/users/containeradministrator/appdata/local/uv'
-                                            args '-v pipcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/pip -v uvcache_speedwagon_uiucprescon_workflows:c:/users/containeradministrator/appdata/local/uv'
-                                          }
-                                    }
+                                       docker {
+                                           image 'python'
+                                           label 'windows && x86_64 && docker'
+                                           args '--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents --mount source=msvc-runtime,target=c:\\msvc_runtime\\'
+                                       }
+                                   }
+                                   environment{
+                                      PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\pipcache'
+                                      UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\uvtools'
+                                      UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\uvpython'
+                                      UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\uvcache'
+                                  }
                                     steps{
                                         unstash 'PYTHON_PACKAGES'
                                         script{
+                                            powershell(
+                                                label:'Get WiX Toolset',
+                                                script: '''Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force
+                                                           Register-PackageSource -Name MyNuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
+                                                           Install-Package -Name wix -Source MyNuGet -Force -ExcludeVersion -RequiredVersion 3.11.2 -Destination .
+                                                       '''
+                                           )
                                             findFiles(glob: 'dist/*.whl').each{
-                                                bat(
-                                                    label: 'Create standalone windows version',
-                                                    script: "./contrib/speedwagon_scripts/make_standalone.bat --base-python-path \"py -3.11\" --venv-path .\\venv ${it} -r requirements.txt --app-name=\"%APP_NAME%\""
-                                                )
+                                                withEnv(["WHEEL=${it.path}"]){
+                                                    powershell(
+                                                        label: 'Create standalone windows version',
+                                                        script: '''python -m pip install uv
+                                                                   $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
+                                                                   Write-Host "APP_NAME = $Env:APP_NAME"
+                                                                   uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME"
+                                                                '''
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1132,7 +1165,7 @@ pipeline {
                         docker{
                             image 'python'
                             label 'docker && linux'
-                            args '--mount source=python-tmp-speedwagon,target=/tmp'
+                            args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
                         }
                     }
                     when{
@@ -1202,12 +1235,19 @@ pipeline {
                         beforeAgent true
                         beforeInput true
                     }
+                     environment{
+                        PIP_CACHE_DIR='/tmp/pipcache'
+                        UV_INDEX_STRATEGY='unsafe-best-match'
+                        UV_TOOL_DIR='/tmp/uvtools'
+                        UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
+                        UV_CACHE_DIR='/tmp/uvcache'
+                    }
                     agent {
-                        dockerfile {
-                            filename 'ci/docker/linux/jenkins/Dockerfile'
-                            label 'linux && docker'
-                            additionalBuildArgs '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL'
-                          }
+                        docker{
+                            image 'python'
+                            label 'docker && linux'
+                            args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
+                        }
                     }
                     options{
                         timeout(time: 1, unit: 'DAYS')

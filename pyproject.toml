@@ -26,6 +26,8 @@ maintainers = [
 authors = [
     {name="University Library at The University of Illinois at Urbana Champaign: Preservation Services", email="prescons@library.illinois.edu"}
 ]
+[project.optional-dependencies]
+gui = ["speedwagon[Qt]"]
 
 [project.entry-points.'speedwagon.plugins']
 #uiucprescon_workflows = 'speedwagon_uiucprecson:uiucprescon_plugin'

@@ -53,7 +53,7 @@ function CheckInstalled( [string]$Name) {
 #    }
 #    $NumberOfTestsPerformed++
 #}
-$APP_NAME = 'Speedwagon UIUC Prescon'
+$APP_NAME = 'Speedwagon (UIUC Prescon Edition)'
 
 if(!$(CheckInstalled -Name $APP_NAME)){
     $IsValid = $false
