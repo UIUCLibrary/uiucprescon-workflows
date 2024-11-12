@@ -3,8 +3,6 @@ library identifier: 'JenkinsPythonHelperLibrary@2024.1.2', retriever: modernSCM(
    remote: 'https://github.com/UIUCLibrary/JenkinsPythonHelperLibrary.git',
    ])
 
-BUNDLED_PYTHON_VERSION = '3.11.9'
-
 
 def deployStandalone(glob, url) {
     script{
@@ -568,35 +566,28 @@ pipeline {
                                                     node('docker && linux && x86_64'){
                                                         checkout scm
                                                         def image = docker.build(UUID.randomUUID().toString(), '-f ci/docker/linux/jenkins/Dockerfile .')
-                                                        try{
-                                                            image.inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp'){
-                                                                try{
+                                                        retry(3){
+                                                            try{
+                                                                image.inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp'){
                                                                     sh( label: 'Running Tox',
                                                                         script: """python3 -m venv venv && venv/bin/pip install uv
-                                                                                   . ./venv/bin/activate
-                                                                                   uv python install cpython-${version}
-                                                                                   trap "rm -rf .tox" EXIT
-                                                                                   uvx -p ${version} --with tox-uv tox run -e ${toxEnv}
+                                                                                   trap "rm -rf ./venv" EXIT
+                                                                                   ./venv/bin/uv python install cpython-${version}
+                                                                                   trap "./venv/bin/uv python list && rm -rf ./venv && rm -rf .tox" EXIT
+                                                                                   ./venv/bin/uvx -p ${version} --with tox-uv tox run -e ${toxEnv}
                                                                                 """
                                                                         )
-                                                                } catch(e) {
-                                                                    sh(script: '''. ./venv/bin/activate
-                                                                          uv python list
-                                                                          '''
-                                                                            )
-                                                                    throw e
-                                                                } finally{
-                                                                    cleanWs(
-                                                                        patterns: [
-                                                                            [pattern: 'venv/', type: 'INCLUDE'],
-                                                                            [pattern: '.tox', type: 'INCLUDE'],
-                                                                            [pattern: '**/__pycache__/', type: 'INCLUDE'],
-                                                                        ]
-                                                                    )
                                                                 }
+                                                            } finally {
+                                                                sh "docker image rm --force ${image.imageName()}"
+                                                                cleanWs(
+                                                                    patterns: [
+                                                                        [pattern: 'venv/', type: 'INCLUDE'],
+                                                                        [pattern: '.tox', type: 'INCLUDE'],
+                                                                        [pattern: '**/__pycache__/', type: 'INCLUDE'],
+                                                                    ]
+                                                                )
                                                             }
-                                                        } finally {
-                                                            sh "docker image rm --force ${image.imageName()}"
                                                         }
                                                     }
                                                 }
@@ -612,17 +603,17 @@ pipeline {
                             }
                             environment{
                                 UV_INDEX_STRATEGY='unsafe-best-match'
-                                PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\pipcache'
-                                UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\uvtools'
-                                UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\uvpython'
-                                UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\uvcache'
+                                PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\pipcache'
+                                UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvtools'
+                                UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvpython'
+                                UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvcache'
                                 VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime\\'
                             }
                             steps{
                                 script{
                                     def envs = []
                                     node('docker && windows'){
-                                        docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents'){
+                                        docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache'){
                                             try{
                                                 checkout scm
                                                 bat(script: 'python -m venv venv && venv\\Scripts\\pip install uv')
@@ -649,26 +640,22 @@ pipeline {
                                                 "Tox Environment: ${toxEnv}",
                                                 {
                                                     node('docker && windows'){
-                                                        docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents --mount source=msvc-runtime,target=$VC_RUNTIME_INSTALLER_LOCATION'){
-                                                            checkout scm
+                                                        retry(3){
                                                             try{
-                                                                installMSVCRuntime(env.VC_RUNTIME_INSTALLER_LOCATION)
-                                                                withEnv(
-                                                                    [
-                                                                        "PYTHON_VERSION=${version}",
-                                                                        "TOX_ENV=${toxEnv}",
+                                                                docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache --mount source=msvc-runtime,target=$VC_RUNTIME_INSTALLER_LOCATION'){
+                                                                    checkout scm
+                                                                    installMSVCRuntime(env.VC_RUNTIME_INSTALLER_LOCATION)
+                                                                    withEnv(
+                                                                        [
+                                                                            "PYTHON_VERSION=${version}",
+                                                                            "TOX_ENV=${toxEnv}",
                                                                         ]
-                                                                ){
-                                                                    bat(label: 'Install uv',
-                                                                        script: 'python -m venv venv && venv\\Scripts\\pip install uv'
-                                                                    )
-                                                                    retry(3){
+                                                                    ){
                                                                         bat(label: 'Running Tox',
-                                                                            script: '''call venv\\Scripts\\activate.bat
-                                                                                       uv python install cpython-%PYTHON_VERSION%
-                                                                                       uvx -p %PYTHON_VERSION% --with tox-uv tox run
+                                                                            script: '''python -m venv venv && venv\\Scripts\\pip install uv
+                                                                                       venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
+                                                                                       venv\\Scripts\\uvx --python %PYTHON_VERSION% --with tox-uv tox run --workdir %TEMP%/.tox
                                                                                        rmdir /s/q venv
-                                                                                       rmdir /s/q .tox
                                                                                     '''
                                                                         )
                                                                     }
@@ -804,16 +791,16 @@ pipeline {
                                            beforeAgent true
                                        }
                                        environment{
-                                           PIP_CACHE_DIR="${isUnix() ? '/tmp/pipcache': 'C:\\Users\\ContainerUser\\Documents\\pipcache'}"
-                                           UV_TOOL_DIR="${isUnix() ? '/tmp/uvtools': 'C:\\Users\\ContainerUser\\Documents\\uvtools'}"
-                                           UV_PYTHON_INSTALL_DIR="${isUnix() ? '/tmp/uvpython': 'C:\\Users\\ContainerUser\\Documents\\uvpython'}"
-                                           UV_CACHE_DIR="${isUnix() ? '/tmp/uvcache': 'C:\\Users\\ContainerUser\\Documents\\uvcache'}"
+                                           PIP_CACHE_DIR="${isUnix() ? '/tmp/pipcache': 'C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\pipcache'}"
+                                           UV_TOOL_DIR="${isUnix() ? '/tmp/uvtools': 'C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvtools'}"
+                                           UV_PYTHON_INSTALL_DIR="${isUnix() ? '/tmp/uvpython': 'C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvpython'}"
+                                           UV_CACHE_DIR="${isUnix() ? '/tmp/uvcache': 'C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvcache'}"
                                        }
                                        agent {
                                            docker {
                                                image 'python'
                                                label "${OS} && ${ARCHITECTURE} && docker"
-                                               args "--mount source=python-tmp-uiucpreson_workflows,target=${['windows'].contains(OS) ? 'C:\\Users\\ContainerUser\\Documents': '/tmp'} ${['windows'].contains(OS) ? '--mount source=msvc-runtime,target=c:\\msvc_runtime\\': ''}"
+                                               args "--mount source=python-tmp-uiucpreson_workflows,target=${['windows'].contains(OS) ? 'C:\\Users\\ContainerUser\\Documents\\jenkins-cache': '/tmp'} ${['windows'].contains(OS) ? '--mount source=msvc-runtime,target=c:\\msvc_runtime\\': ''}"
                                            }
                                        }
                                        steps {
@@ -826,27 +813,22 @@ pipeline {
                                                        sh(
                                                            label: 'Testing with tox',
                                                            script: '''python3 -m venv venv
-                                                                      . ./venv/bin/activate
                                                                       trap "rm -rf venv" EXIT
-                                                                      pip install uv
-                                                                      uvx --with tox-uv tox
+                                                                      ./venv/bin/pip install uv
+                                                                      trap "rm -rf venv && rm -rf .tox" EXIT
+                                                                      ./venv/bin/uvx --with tox-uv tox
                                                                    '''
                                                        )
                                                    } else {
                                                        installMSVCRuntime('c:\\msvc_runtime\\')
-                                                       bat(
-                                                           label: 'Install uv',
-                                                           script: '''python -m venv venv
-                                                                      call venv\\Scripts\\activate.bat
-                                                                      pip install uv
-                                                                   '''
-                                                       )
                                                        script{
                                                            retry(3){
                                                                bat(
                                                                    label: 'Testing with tox',
-                                                                   script: '''call venv\\Scripts\\activate.bat
-                                                                              uvx --with tox-uv tox
+                                                                   script: '''python -m venv venv
+                                                                              venv\\Scripts\\pip install uv
+                                                                              venv\\Scripts\\uvx --with tox-uv tox
+                                                                              rmdir /s /q venv
                                                                            '''
                                                                )
                                                            }
@@ -1011,14 +993,14 @@ pipeline {
                                        docker {
                                            image 'python'
                                            label 'windows && x86_64 && docker'
-                                           args '--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents --mount source=msvc-runtime,target=c:\\msvc_runtime\\'
+                                           args '--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache --mount source=msvc-runtime,target=c:\\msvc_runtime\\'
                                        }
                                    }
                                    environment{
-                                      PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\pipcache'
-                                      UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\uvtools'
-                                      UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\uvpython'
-                                      UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\uvcache'
+                                      PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\pipcache'
+                                      UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvtools'
+                                      UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvpython'
+                                      UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvcache'
                                   }
                                     steps{
                                         unstash 'PYTHON_PACKAGES'
