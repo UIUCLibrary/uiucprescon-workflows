@@ -155,8 +155,10 @@ def getLinusToxEnvs(){
 def getWindowsToxEnvs(){
     node('docker && windows'){
         try{
-            docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache'){
-                return getToxEnvs()
+            withEnv(['UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvpython']){
+                docker.image('python').inside('--mount source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython'){
+                    return getToxEnvs()
+                }
             }
         } finally{
             bat "${tool(name: 'Default', type: 'git')} clean -dfx"
@@ -631,7 +633,7 @@ def call(){
                                                                             'VC_RUNTIME_INSTALLER_LOCATION=c:\\msvc_runtime\\'
                                                                         ]
                                                                     ){
-                                                                        docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache --mount source=msvc-runtime,target=c:\\msvc_runtime\\'){
+                                                                        docker.image('python').inside("--mount source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} --mount source=msvc-runtime,target=c:\\msvc_runtime\\"){
                                                                             checkout scm
                                                                             installMSVCRuntime('c:\\msvc_runtime\\')
                                                                             bat(label: 'Running Tox',
@@ -942,7 +944,7 @@ def call(){
                                            docker {
                                                image 'python'
                                                label 'windows && x86_64 && docker'
-                                               args '--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache --mount source=msvc-runtime,target=c:\\msvc_runtime\\'
+                                               args '--mount source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython --mount source=msvc-runtime,target=c:\\msvc_runtime\\'
                                            }
                                        }
                                        environment{
