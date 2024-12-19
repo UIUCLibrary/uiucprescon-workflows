@@ -117,8 +117,58 @@ def getStandAloneStorageServers(){
         }
     }
 }
+def getToxEnvs(){
+    try{
+        checkout scm
+        if(isUnix()){
+            sh(script: 'python3 -m venv venv && venv/bin/pip install uv')
+            return sh(
+                label: 'Get tox environments',
+                script: './venv/bin/uvx --quiet --with tox-uv tox list -d --no-desc',
+                returnStdout: true,
+            ).trim().split('\n')
+        } else{
+            bat(script: 'python -m venv venv && venv\\Scripts\\pip install uv')
+            return bat(
+                label: 'Get tox environments',
+                script: '@.\\venv\\Scripts\\uvx --quiet --with tox-uv tox list -d --no-desc',
+                returnStdout: true,
+            ).trim().split('\r\n')
+        }
+    } finally{
+        cleanWs(
+            patterns: [
+                [pattern: 'venv/', type: 'INCLUDE'],
+                [pattern: '.tox/', type: 'INCLUDE'],
+                [pattern: '**/__pycache__/', type: 'INCLUDE'],
+            ]
+        )
+    }
+}
 
+def getLinusToxEnvs(){
+    node('docker && linux && x86_64'){
+        try{
+            docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp'){
+                return getToxEnvs()
+            }
+        } finally{
+            sh "${tool(name: 'Default', type: 'git')} clean -dfx"
+        }
+    }
+}
 
+def getWindowsToxEnvs(){
+    node('docker && windows'){
+        try{
+            docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache'){
+                return getToxEnvs()
+            }
+        } finally{
+            bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+        }
+    }
+}
 
 def getPypiConfig() {
     retry(conditions: [agent()], count: 3) {
@@ -535,30 +585,8 @@ def call(){
                                 }
                                 steps{
                                     script{
-                                        def envs = []
-                                        node('docker && linux && x86_64'){
-                                            docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp'){
-                                                try{
-                                                    checkout scm
-                                                    sh(script: 'python3 -m venv venv && venv/bin/pip install uv')
-                                                    envs = sh(
-                                                        label: 'Get tox environments',
-                                                        script: './venv/bin/uvx --quiet --with tox-uv tox list -d --no-desc',
-                                                        returnStdout: true,
-                                                    ).trim().split('\n')
-                                                } finally{
-                                                    cleanWs(
-                                                        patterns: [
-                                                            [pattern: 'venv/', type: 'INCLUDE'],
-                                                            [pattern: '.tox/', type: 'INCLUDE'],
-                                                            [pattern: '**/__pycache__/', type: 'INCLUDE'],
-                                                        ]
-                                                    )
-                                                }
-                                            }
-                                        }
                                         parallel(
-                                            envs.collectEntries{toxEnv ->
+                                            getLinusToxEnvs().collectEntries{toxEnv ->
                                                 def version = toxEnv.replaceAll(/py(\d)(\d+).*/, '$1.$2')
                                                 [
                                                     "Tox Environment: ${toxEnv}",
@@ -611,30 +639,8 @@ def call(){
                                 }
                                 steps{
                                     script{
-                                        def envs = []
-                                        node('docker && windows'){
-                                            docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache'){
-                                                try{
-                                                    checkout scm
-                                                    bat(script: 'python -m venv venv && venv\\Scripts\\pip install uv')
-                                                    envs = bat(
-                                                        label: 'Get tox environments',
-                                                        script: '@.\\venv\\Scripts\\uvx --quiet --with tox-uv tox list -d --no-desc',
-                                                        returnStdout: true,
-                                                    ).trim().split('\r\n')
-                                                } finally{
-                                                    cleanWs(
-                                                        patterns: [
-                                                            [pattern: 'venv/', type: 'INCLUDE'],
-                                                            [pattern: '.tox/', type: 'INCLUDE'],
-                                                            [pattern: '**/__pycache__/', type: 'INCLUDE'],
-                                                        ]
-                                                    )
-                                                }
-                                            }
-                                        }
                                         parallel(
-                                            envs.collectEntries{toxEnv ->
+                                            getWindowsToxEnvs().collectEntries{toxEnv ->
                                                 def version = toxEnv.replaceAll(/py(\d)(\d+).*/, '$1.$2')
                                                 [
                                                     "Tox Environment: ${toxEnv}",
@@ -642,15 +648,16 @@ def call(){
                                                         node('docker && windows'){
                                                             retry(3){
                                                                 try{
-                                                                    docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache --mount source=msvc-runtime,target=$VC_RUNTIME_INSTALLER_LOCATION'){
-                                                                        checkout scm
-                                                                        installMSVCRuntime(env.VC_RUNTIME_INSTALLER_LOCATION)
-                                                                        withEnv(
-                                                                            [
-                                                                                "PYTHON_VERSION=${version}",
-                                                                                "TOX_ENV=${toxEnv}",
-                                                                            ]
-                                                                        ){
+                                                                    withEnv(
+                                                                        [
+                                                                            "PYTHON_VERSION=${version}",
+                                                                            "TOX_ENV=${toxEnv}",
+                                                                            'VC_RUNTIME_INSTALLER_LOCATION=c:\\msvc_runtime\\'
+                                                                        ]
+                                                                    ){
+                                                                        docker.image('python').inside('--mount source=python-tmp-uiucpreson_workflows,target=C:\\Users\\ContainerUser\\Documents\\jenkins-cache --mount source=msvc-runtime,target=c:\\msvc_runtime\\'){
+                                                                            checkout scm
+                                                                            installMSVCRuntime('c:\\msvc_runtime\\')
                                                                             bat(label: 'Running Tox',
                                                                                 script: '''python -m venv venv && venv\\Scripts\\pip install uv
                                                                                            venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
