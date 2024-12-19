@@ -115,14 +115,14 @@ def getToxEnvs(){
     try{
         checkout scm
         if(isUnix()){
-            sh(script: 'python3 -m venv venv && venv/bin/pip install uv')
+            sh(script: 'python3 -m venv venv && venv/bin/pip install --disable-pip-version-check uv')
             return sh(
                 label: 'Get tox environments',
                 script: './venv/bin/uvx --quiet --with tox-uv tox list -d --no-desc',
                 returnStdout: true,
             ).trim().split('\n')
         } else{
-            bat(script: 'python -m venv venv && venv\\Scripts\\pip install uv')
+            bat(script: 'python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv')
             return bat(
                 label: 'Get tox environments',
                 script: '@.\\venv\\Scripts\\uvx --quiet --with tox-uv tox list -d --no-desc',
@@ -246,7 +246,7 @@ def call(){
                            script:'''python3 -m venv venv
                               trap "rm -rf venv" EXIT
                               . ./venv/bin/activate
-                              pip install uv
+                              pip install --disable-pip-version-check uv
                               uvx --from sphinx --with-editable . --with-requirements requirements-dev.txt sphinx-build -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
                               uvx --from sphinx --with-editable . --with-requirements requirements-dev.txt sphinx-build -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
                               ''')
@@ -317,10 +317,10 @@ def call(){
                                             sh(
                                                 label: 'Create virtual environment',
                                                 script: '''python3 -m venv bootstrap_uv
-                                                           bootstrap_uv/bin/pip install uv
+                                                           bootstrap_uv/bin/pip install --disable-pip-version-check uv
                                                            bootstrap_uv/bin/uv venv venv
                                                            . ./venv/bin/activate
-                                                           bootstrap_uv/bin/uv pip install uv
+                                                           bootstrap_uv/bin/uv pip install --disable-pip-version-check uv
                                                            rm -rf bootstrap_uv
                                                            uv pip install -r requirements-dev.txt
                                                            '''
@@ -576,7 +576,7 @@ def call(){
                                                                 try{
                                                                     image.inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp'){
                                                                         sh( label: 'Running Tox',
-                                                                            script: """python3 -m venv venv && venv/bin/pip install uv
+                                                                            script: """python3 -m venv venv && venv/bin/pip install --disable-pip-version-check uv
                                                                                        trap "rm -rf ./venv" EXIT
                                                                                        ./venv/bin/uv python install cpython-${version}
                                                                                        trap "./venv/bin/uv python list && rm -rf ./venv && rm -rf .tox" EXIT
@@ -637,7 +637,7 @@ def call(){
                                                                             checkout scm
                                                                             installMSVCRuntime('c:\\msvc_runtime\\')
                                                                             bat(label: 'Running Tox',
-                                                                                script: '''python -m venv venv && venv\\Scripts\\pip install uv
+                                                                                script: '''python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv
                                                                                            venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
                                                                                            venv\\Scripts\\uvx --python %PYTHON_VERSION% --with tox-uv tox run --workdir %TEMP%/.tox
                                                                                            rmdir /s/q venv
@@ -698,7 +698,7 @@ def call(){
                                 steps{
                                     sh(
                                         label: 'Package',
-                                        script: '''python3 -m venv venv && venv/bin/pip install uv
+                                        script: '''python3 -m venv venv && venv/bin/pip install --disable-pip-version-check uv
                                                    trap "rm -rf venv" EXIT
                                                    . ./venv/bin/activate
                                                    uv build
@@ -866,7 +866,7 @@ def call(){
                                             sh """
                                                 python3 -m venv venv
                                                 . ./venv/bin/activate
-                                                pip install uv
+                                                pip install --disable-pip-version-check uv
                                                 uvx --index-strategy=unsafe-best-match  --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
                                                 """
                                             }
@@ -910,7 +910,7 @@ def call(){
                                                 sh """
                                                     python3 -m venv venv
                                                     . ./venv/bin/activate
-                                                    pip install uv
+                                                    pip install --disable-pip-version-check uv
                                                     uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
                                                     """
                                                 }
@@ -967,7 +967,7 @@ def call(){
                                                     withEnv(["WHEEL=${it.path}"]){
                                                         powershell(
                                                             label: 'Create standalone windows version',
-                                                            script: '''python -m pip install uv
+                                                            script: '''python -m pip install --disable-pip-version-check uv
                                                                        $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
                                                                        Write-Host "APP_NAME = $Env:APP_NAME"
                                                                        uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME"
@@ -1144,7 +1144,7 @@ def call(){
                                         script: '''python3 -m venv venv
                                                    trap "rm -rf venv" EXIT
                                                    . ./venv/bin/activate
-                                                   pip install uv
+                                                   pip install --disable-pip-version-check uv
                                                    uvx --with-requirements=requirements-dev.txt twine --installpkg upload --disable-progress-bar --non-interactive dist/*
                                                 '''
                                     )
