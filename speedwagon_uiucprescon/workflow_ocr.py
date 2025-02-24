@@ -1,6 +1,7 @@
 """Workflow for performing OCR on image files."""
 from __future__ import annotations
 import io
+import logging
 import os
 import typing
 
@@ -219,17 +220,17 @@ class OCRWorkflow(speedwagon.Workflow[UserArgs]):
         def full_name(code: str) -> str:
             language_name = ocr.LANGUAGE_CODES.get(code)
             return '' if language_name is None else language_name
-
-        for lang in sorted(
-                self.get_available_languages(
-                    path=typing.cast(str, tessdata_path)
-                ),
-                key=full_name
-        ):
-            fullname = ocr.LANGUAGE_CODES.get(lang)
-            if fullname is None:
-                continue
-            language_type.add_selection(fullname)
+        if tessdata_path:
+            for lang in sorted(
+                    self.get_available_languages(
+                        path=typing.cast(str, tessdata_path)
+                    ),
+                    key=full_name
+            ):
+                fullname = ocr.LANGUAGE_CODES.get(lang)
+                if fullname is None:
+                    continue
+                language_type.add_selection(fullname)
 
         package_root_option =\
             speedwagon.workflow.DirectorySelect("Path", required=True)
@@ -272,9 +273,12 @@ class OCRWorkflow(speedwagon.Workflow[UserArgs]):
                 return False
 
             return True
-
-        for file in filter(filter_only_trainingdata, os.scandir(path)):
-            yield os.path.splitext(file.name)[0]
+        try:
+            for file in filter(filter_only_trainingdata, os.scandir(path.strip())):
+                yield os.path.splitext(file.name)[0]
+        except FileNotFoundError as e:
+            logging.warning(f"unable to locate language files. Reason: {e}")
+            yield from []
 
     @classmethod
     def generate_report(
@@ -308,14 +312,6 @@ class OCRWorkflow(speedwagon.Workflow[UserArgs]):
 
         return list(filter(filter_ocr_gen_tasks, results))
 
-    @staticmethod
-    def default_tesseract_data_path() -> str:
-        """Get the default path to tessdata files."""
-        return os.path.join(
-            speedwagon.config.StandardConfigFileLocator().get_user_data_dir(),
-            "tessdata"
-        )
-
     def workflow_options(
         self
     ) -> List[
@@ -333,7 +329,6 @@ class OCRWorkflow(speedwagon.Workflow[UserArgs]):
             )
 
         tesseract_path.required = True
-        tesseract_path.default_value = self.default_tesseract_data_path()
         return [
             tesseract_path
         ]
