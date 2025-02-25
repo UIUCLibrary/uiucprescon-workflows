@@ -79,24 +79,34 @@ class OCRWorkflow(speedwagon.Workflow[UserArgs]):
         self.global_settings = kwargs.get('global_settings', {})
         try:
             tessdata_path = self.get_tesseract_path()
+
         except AttributeError:
             tessdata_path = ""
 
-        description = \
-            "Create OCR text files for images. \n" \
-            "\n" \
-            "Settings: \n" \
-            "    Path: Path containing tiff or jp2 files. \n" \
-            "    Image File Type: The type of Image file to use.\n" \
-            "\n" \
-            "\n" \
-            "Adding Additional Languages:\n" \
-            "    To modify the available languages, place " \
-            "Tesseract traineddata files" \
-            "into the following directory:\n" \
-            "\n" \
-            f"{tessdata_path}.\n" \
-            "\n" \
+        description_header = "Create OCR text files for images."
+        if tessdata_path:
+            description_body = \
+                "Settings: \n" \
+                "    Path: Path containing tiff or jp2 files. \n" \
+                "    Image File Type: The type of Image file to use.\n" \
+                "\n" \
+                "\n" \
+                "Adding Additional Languages:\n" \
+                "    To modify the available languages, place " \
+                "Tesseract traineddata files" \
+                "into the following directory:\n" \
+                "\n" \
+                f"{tessdata_path}.\n" \
+
+        else:
+            description_body = \
+                ("TESSERACT DATA FILE LOCATION NOT SET!\n"
+                 "\n"
+                 "To fix this, open Settings/Preferences for Speedwagon and "
+                 "go to the \"Workflow Settings\" Tab. Locate the "
+                 "\"Generate OCR Files\" sections and set the value for "
+                 "\"Tesseract data file location\"")
+        description_footer = \
             "Note:\n" \
             "    It's important to use the correct version of the " \
             "traineddata files. Using incorrect versions won't crash the " \
@@ -104,7 +114,15 @@ class OCRWorkflow(speedwagon.Workflow[UserArgs]):
             "\n" \
             "For more information about these files, go to " \
             "https://github.com/tesseract-ocr/tesseract/wiki/Data-Files\n"
-        self.set_description(description)
+
+        description = [
+            description_header,
+            "\n",
+            description_body,
+            "\n",
+            description_footer
+        ]
+        self.set_description("\n".join(description))
 
     @classmethod
     def set_description(cls, text: str) -> None:
