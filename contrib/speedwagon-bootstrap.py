@@ -7,8 +7,7 @@
 # nuitka-project: --include-package=speedwagon
 # nuitka-project: --include-package=http.cookies
 # nuitka-project: --include-package=pytz_deprecation_shim
-from xml.dom import minidom
-import xml.etree.ElementTree as ET
+
 import sys
 from multiprocessing import freeze_support
 import speedwagon.startup
