@@ -115,7 +115,9 @@ class TesseractConfigSetupTask(AbsSystemTask):
     def default_tesseract_data_path() -> str:
         """Get the default path to tessdata files."""
         return os.path.join(
-            StandardConfigFileLocator().get_user_data_dir(),
+            StandardConfigFileLocator(
+                config_directory_prefix=CONFIG_DIRECTORY_NAME
+            ).get_user_data_dir(),
             "tessdata"
         )
 
