@@ -77,6 +77,14 @@ class OCRWorkflow(speedwagon.Workflow[UserArgs]):
         """Create a OCR Workflow."""
         super().__init__(*args, **kwargs)
         self.global_settings = kwargs.get('global_settings', {})
+        self._update_description()
+
+
+    def set_options_backend(self, options_backend: speedwagon.workflow.OptionsBackend) -> None:
+        super().set_options_backend(options_backend)
+        self._update_description()
+
+    def _update_description(self):
         try:
             tessdata_path = self.get_tesseract_path()
 
@@ -96,8 +104,7 @@ class OCRWorkflow(speedwagon.Workflow[UserArgs]):
                 "Tesseract traineddata files" \
                 "into the following directory:\n" \
                 "\n" \
-                f"{tessdata_path}.\n" \
-
+                f"{tessdata_path}.\n"
         else:
             description_body = \
                 ("TESSERACT DATA FILE LOCATION NOT SET!\n"
