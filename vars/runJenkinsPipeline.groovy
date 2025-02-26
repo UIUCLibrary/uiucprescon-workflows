@@ -844,6 +844,7 @@ def call(){
                     stage('End-user packages'){
                         environment {
                             APP_NAME="Speedwagon (UIUC Prescon Edition)"
+                            BOOTSTRAP_SCRIPT="./speedwagon_uiucprescon/speedwagon_bootstrap.py"
                         }
                         parallel{
                             stage('Mac Application Bundle x86_64'){
@@ -867,7 +868,7 @@ def call(){
                                                 python3 -m venv venv
                                                 . ./venv/bin/activate
                                                 pip install --disable-pip-version-check uv
-                                                uvx --index-strategy=unsafe-best-match  --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
+                                                uvx --index-strategy=unsafe-best-match  --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\" --app-bootstrap-script=\"$BOOTSTRAP_SCRIPT\"
                                                 """
                                             }
                                         }
@@ -911,7 +912,7 @@ def call(){
                                                     python3 -m venv venv
                                                     . ./venv/bin/activate
                                                     pip install --disable-pip-version-check uv
-                                                    uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\"
+                                                    uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\" --app-bootstrap-script=\"$BOOTSTRAP_SCRIPT\"
                                                     """
                                                 }
                                         }
@@ -970,7 +971,7 @@ def call(){
                                                             script: '''python -m pip install --disable-pip-version-check uv
                                                                        $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
                                                                        Write-Host "APP_NAME = $Env:APP_NAME"
-                                                                       uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME"
+                                                                       uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME" --app-bootstrap-script="$Env:BOOTSTRAP_SCRIPT"
                                                                     '''
                                                         )
                                                     }
