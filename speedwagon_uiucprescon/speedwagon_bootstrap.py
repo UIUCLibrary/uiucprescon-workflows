@@ -10,9 +10,11 @@
 
 import sys
 from multiprocessing import freeze_support
-import speedwagon.startup
+CONFIG_DIRECTORY_NAME = "speedwagon-prescon"
 
-def main():
+
+def main():  # pragma: no cover
+    import speedwagon.startup
     parser = speedwagon.config.config.CliArgsSetter.get_arg_parser()
     args = parser.parse_args(sys.argv[1:])
 
@@ -21,7 +23,7 @@ def main():
         return
     app = speedwagon.startup.ApplicationLauncher()
     app.application_name = "Speedwagon: UIUC Prescon Edition"
-    app.application_config_directory_name = "speedwagon-prescon"
+    app.application_config_directory_name = CONFIG_DIRECTORY_NAME
     app.initialize()
     sys.exit(app.run())
 

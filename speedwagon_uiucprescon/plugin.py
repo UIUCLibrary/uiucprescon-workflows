@@ -7,7 +7,7 @@ import typing
 import os
 
 import speedwagon
-
+from .speedwagon_bootstrap import CONFIG_DIRECTORY_NAME
 from speedwagon.tasks.system import AbsSystemTask
 from speedwagon.config import (
     WorkflowSettingsYAMLResolver,
@@ -100,7 +100,9 @@ class TesseractConfigSetupTask(AbsSystemTask):
     def __init__(self) -> None:
         """Create a new TesseractConfigSetupTask object."""
         super().__init__()
-        self.config_file_location_strategy = StandardConfigFileLocator()
+        self.config_file_location_strategy = StandardConfigFileLocator(
+            config_directory_prefix=CONFIG_DIRECTORY_NAME
+        )
 
     def get_config_file(self) -> str:
         """Get config file path."""
