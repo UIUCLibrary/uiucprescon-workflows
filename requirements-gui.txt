@@ -63,7 +63,7 @@ shiboken6==6.8.2.1
     #   pyside6
     #   pyside6-addons
     #   pyside6-essentials
-speedwagon==0.4.0b12
+speedwagon==0.4.0b13
     # via
     #   -r requirements/requirements.in
     #   speedwagon-uiucprescon (pyproject.toml)
