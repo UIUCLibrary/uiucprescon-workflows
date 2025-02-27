@@ -844,7 +844,7 @@ def call(){
                     stage('End-user packages'){
                         environment {
                             APP_NAME="Speedwagon (UIUC Prescon Edition)"
-                            BOOTSTRAP_SCRIPT="./speedwagon_uiucprescon/speedwagon_bootstrap.py"
+                            BOOTSTRAP_SCRIPT="./contrib/speedwagon_bootstrap.py"
                         }
                         parallel{
                             stage('Mac Application Bundle x86_64'){
