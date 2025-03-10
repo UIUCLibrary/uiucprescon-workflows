@@ -96,7 +96,7 @@ def deploy_to_chocolatey(ChocolateyServer){
 def getVersion(){
     node(){
         checkout scm
-        return readTOML( file: 'pyproject.toml')['project']
+        return readTOML( file: 'pyproject.toml')['project']['version']
     }
 }
 
@@ -764,72 +764,74 @@ def call(){
                                         stages: [
                                             { entry ->
                                                 stage('Test Package') {
-                                                    node("${entry.OS} && ${entry.ARCHITECTURE} ${['linux', 'windows'].contains(entry.OS) ? '&& docker': ''}"){
-                                                        try{
-                                                            checkout scm
-                                                            unstash 'PYTHON_PACKAGES'
-                                                            if(['linux', 'windows'].contains(entry.OS) && params.containsKey("INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()) && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]){
-                                                                docker.image('python').inside(isUnix() ? '': "--mount type=volume,source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython --mount source=msvc-runtime,target=c:\\msvc_runtime\\" ){
-                                                                     if(isUnix()){
-                                                                        withEnv([
-                                                                            'PIP_CACHE_DIR=/tmp/pipcache',
-                                                                            'UV_TOOL_DIR=/tmp/uvtools',
-                                                                            'UV_PYTHON_INSTALL_DIR=/tmp/uvpython',
-                                                                            'UV_CACHE_DIR=/tmp/uvcache',
-                                                                        ]){
-                                                                             sh(
-                                                                                label: 'Testing with tox',
-                                                                                script: """python3 -m venv venv
-                                                                                           ./venv/bin/pip install --disable-pip-version-check uv
-                                                                                           ./venv/bin/uv python install cpython-${entry.PYTHON_VERSION}
-                                                                                           ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                                                                        """
-                                                                            )
-                                                                        }
-                                                                     } else {
-                                                                        withEnv([
-                                                                            'PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\pipcache',
-                                                                            'UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\uvtools',
-                                                                            'UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\uvpython',
-                                                                            'UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\uvcache',
-                                                                        ]){
-                                                                            installMSVCRuntime('c:\\msvc_runtime\\')
-                                                                            bat(
-                                                                                label: 'Testing with tox',
-                                                                                script: """python -m venv venv
-                                                                                           .\\venv\\Scripts\\pip install --disable-pip-version-check uv
-                                                                                           .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                                                                                           .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                                                                        """
-                                                                            )
-                                                                        }
-                                                                     }
-                                                                }
-                                                            } else {
-                                                                if(isUnix()){
-                                                                    sh(
-                                                                        label: 'Testing with tox',
-                                                                        script: """python3 -m venv venv
-                                                                                   ./venv/bin/pip install --disable-pip-version-check uv
-                                                                                   ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                                                                """
-                                                                    )
+                                                    retry(3){
+                                                        node("${entry.OS} && ${entry.ARCHITECTURE} ${['linux', 'windows'].contains(entry.OS) ? '&& docker': ''}"){
+                                                            try{
+                                                                checkout scm
+                                                                unstash 'PYTHON_PACKAGES'
+                                                                if(['linux', 'windows'].contains(entry.OS) && params.containsKey("INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()) && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]){
+                                                                    docker.image('python').inside(isUnix() ? '': "--mount type=volume,source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython --mount source=msvc-runtime,target=c:\\msvc_runtime\\" ){
+                                                                         if(isUnix()){
+                                                                            withEnv([
+                                                                                'PIP_CACHE_DIR=/tmp/pipcache',
+                                                                                'UV_TOOL_DIR=/tmp/uvtools',
+                                                                                'UV_PYTHON_INSTALL_DIR=/tmp/uvpython',
+                                                                                'UV_CACHE_DIR=/tmp/uvcache',
+                                                                            ]){
+                                                                                 sh(
+                                                                                    label: 'Testing with tox',
+                                                                                    script: """python3 -m venv venv
+                                                                                               ./venv/bin/pip install --disable-pip-version-check uv
+                                                                                               ./venv/bin/uv python install cpython-${entry.PYTHON_VERSION}
+                                                                                               ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                                                                            """
+                                                                                )
+                                                                            }
+                                                                         } else {
+                                                                            withEnv([
+                                                                                'PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\pipcache',
+                                                                                'UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\uvtools',
+                                                                                'UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\uvpython',
+                                                                                'UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\uvcache',
+                                                                            ]){
+                                                                                installMSVCRuntime('c:\\msvc_runtime\\')
+                                                                                bat(
+                                                                                    label: 'Testing with tox',
+                                                                                    script: """python -m venv venv
+                                                                                               .\\venv\\Scripts\\pip install --disable-pip-version-check uv
+                                                                                               .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
+                                                                                               .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                                                                            """
+                                                                                )
+                                                                            }
+                                                                         }
+                                                                    }
                                                                 } else {
-                                                                    bat(
-                                                                        label: 'Testing with tox',
-                                                                        script: """python -m venv venv
-                                                                                   .\\venv\\Scripts\\pip install --disable-pip-version-check uv
-                                                                                   .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                                                                                   .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                                                                """
-                                                                    )
+                                                                    if(isUnix()){
+                                                                        sh(
+                                                                            label: 'Testing with tox',
+                                                                            script: """python3 -m venv venv
+                                                                                       ./venv/bin/pip install --disable-pip-version-check uv
+                                                                                       ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                                                                    """
+                                                                        )
+                                                                    } else {
+                                                                        bat(
+                                                                            label: 'Testing with tox',
+                                                                            script: """python -m venv venv
+                                                                                       .\\venv\\Scripts\\pip install --disable-pip-version-check uv
+                                                                                       .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
+                                                                                       .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                                                                    """
+                                                                        )
+                                                                    }
                                                                 }
-                                                            }
-                                                        } finally{
-                                                            if(isUnix()){
-                                                                sh "${tool(name: 'Default', type: 'git')} clean -dfx"
-                                                            } else {
-                                                                bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                            } finally{
+                                                                if(isUnix()){
+                                                                    sh "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                } else {
+                                                                    bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -1098,7 +1100,7 @@ def call(){
                         agent {
                             docker{
                                 image 'python'
-                                label 'docker && linux'
+                                label 'docker && linux && x86_64'
                                 args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
                             }
                         }
@@ -1146,7 +1148,7 @@ def call(){
                                                    trap "rm -rf venv" EXIT
                                                    . ./venv/bin/activate
                                                    pip install --disable-pip-version-check uv
-                                                   uvx --with-requirements=requirements-dev.txt twine --installpkg upload --disable-progress-bar --non-interactive dist/*
+                                                   uvx --with-requirements=requirements-dev.txt twine upload --disable-progress-bar --non-interactive dist/*
                                                 '''
                                     )
                                 }
