@@ -96,7 +96,7 @@ def deploy_to_chocolatey(ChocolateyServer){
 def getVersion(){
     node(){
         checkout scm
-        return readTOML( file: 'pyproject.toml')['project']
+        return readTOML( file: 'pyproject.toml')['project']['version']
     }
 }
 
@@ -1148,7 +1148,7 @@ def call(){
                                                    trap "rm -rf venv" EXIT
                                                    . ./venv/bin/activate
                                                    pip install --disable-pip-version-check uv
-                                                   uvx --with-requirements=requirements-dev.txt twine --installpkg upload --disable-progress-bar --non-interactive dist/*
+                                                   uvx --with-requirements=requirements-dev.txt twine upload --disable-progress-bar --non-interactive dist/*
                                                 '''
                                     )
                                 }
