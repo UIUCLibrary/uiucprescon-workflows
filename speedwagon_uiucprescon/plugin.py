@@ -7,7 +7,6 @@ import typing
 import os
 
 import speedwagon
-from .speedwagon_bootstrap import CONFIG_DIRECTORY_NAME
 from speedwagon.tasks.system import AbsSystemTask
 from speedwagon.config import (
     WorkflowSettingsYAMLResolver,
@@ -94,51 +93,51 @@ deprecated_workflows: typing.List[
 ]
 
 
-class TesseractConfigSetupTask(AbsSystemTask):
-    """Configure Tesseract data location."""
-
-    def __init__(self) -> None:
-        """Create a new TesseractConfigSetupTask object."""
-        super().__init__()
-        self.config_file_location_strategy = StandardConfigFileLocator(
-            config_directory_prefix=CONFIG_DIRECTORY_NAME
-        )
-
-    def get_config_file(self) -> str:
-        """Get config file path."""
-        return os.path.join(
-            self.config_file_location_strategy.get_app_data_dir(),
-            WORKFLOWS_SETTINGS_YML_FILE_NAME,
-        )
-
-    @staticmethod
-    def default_tesseract_data_path() -> str:
-        """Get the default path to tessdata files."""
-        return os.path.join(
-            StandardConfigFileLocator(
-                config_directory_prefix=CONFIG_DIRECTORY_NAME
-            ).get_user_data_dir(),
-            "tessdata"
-        )
-
-    def run(self) -> None:
-        """Run task."""
-        yaml_file = self.get_config_file()
-
-        manager = WorkflowSettingsManager(
-            getter_strategy=WorkflowSettingsYAMLResolver(yaml_file),
-            setter_strategy=WorkflowSettingsYamlExporter(yaml_file)
-        )
-        workflow_settings: speedwagon.config.SettingsData = {}
-        ocr_workflow = OCRWorkflow()
-        ocr_existing_options = manager.get_workflow_settings(ocr_workflow)
-        if "Tesseract data file location" not in ocr_existing_options:
-            workflow_settings[
-                "Tesseract data file location"
-            ] = self.default_tesseract_data_path()
-        if workflow_settings:
-            manager.save_workflow_settings(ocr_workflow, workflow_settings)
-
-    def description(self) -> str:
-        """Detailed message to user."""
-        return 'Setting up Tesseract data configuration settings.'
+# class TesseractConfigSetupTask(AbsSystemTask):
+#     """Configure Tesseract data location."""
+#
+#     def __init__(self) -> None:
+#         """Create a new TesseractConfigSetupTask object."""
+#         super().__init__()
+#         self.config_file_location_strategy = StandardConfigFileLocator(
+#             config_directory_prefix=CONFIG_DIRECTORY_NAME
+#         )
+#
+#     def get_config_file(self) -> str:
+#         """Get config file path."""
+#         return os.path.join(
+#             self.config_file_location_strategy.get_app_data_dir(),
+#             WORKFLOWS_SETTINGS_YML_FILE_NAME,
+#         )
+#
+#     @staticmethod
+#     def default_tesseract_data_path() -> str:
+#         """Get the default path to tessdata files."""
+#         return os.path.join(
+#             StandardConfigFileLocator(
+#                 config_directory_prefix=CONFIG_DIRECTORY_NAME
+#             ).get_user_data_dir(),
+#             "tessdata"
+#         )
+#
+#     def run(self) -> None:
+#         """Run task."""
+#         yaml_file = self.get_config_file()
+#
+#         manager = WorkflowSettingsManager(
+#             getter_strategy=WorkflowSettingsYAMLResolver(yaml_file),
+#             setter_strategy=WorkflowSettingsYamlExporter(yaml_file)
+#         )
+#         workflow_settings: speedwagon.config.SettingsData = {}
+#         ocr_workflow = OCRWorkflow()
+#         ocr_existing_options = manager.get_workflow_settings(ocr_workflow)
+#         if "Tesseract data file location" not in ocr_existing_options:
+#             workflow_settings[
+#                 "Tesseract data file location"
+#             ] = self.default_tesseract_data_path()
+#         if workflow_settings:
+#             manager.save_workflow_settings(ocr_workflow, workflow_settings)
+#
+#     def description(self) -> str:
+#         """Detailed message to user."""
+#         return 'Setting up Tesseract data configuration settings.'
