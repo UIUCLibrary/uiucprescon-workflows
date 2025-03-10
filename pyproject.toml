@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "speedwagon-uiucprescon"
-version = "0.3.2b2"
+version = "0.3.2.dev3"
 dependencies = [
     "speedwagon>=0.4.0b14",
     "HathiZip>=0.1.10",
