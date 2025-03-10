@@ -1100,7 +1100,7 @@ def call(){
                         agent {
                             docker{
                                 image 'python'
-                                label 'docker && linux'
+                                label 'docker && linux && x86_64'
                                 args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
                             }
                         }
