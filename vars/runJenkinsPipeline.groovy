@@ -14,6 +14,66 @@ def deployStandalone(glob, url) {
     }
 }
 
+def testPackage(entry){
+    if(['linux', 'windows'].contains(entry.OS) && params.containsKey("INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()) && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]){
+        docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python').inside(isUnix() ? '': "--mount type=volume,source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython --mount source=msvc-runtime,target=c:\\msvc_runtime\\" ){
+             if(isUnix()){
+                withEnv([
+                    'PIP_CACHE_DIR=/tmp/pipcache',
+                    'UV_TOOL_DIR=/tmp/uvtools',
+                    'UV_PYTHON_INSTALL_DIR=/tmp/uvpython',
+                    'UV_CACHE_DIR=/tmp/uvcache',
+                ]){
+                     sh(
+                        label: 'Testing with tox',
+                        script: """python3 -m venv venv
+                                   ./venv/bin/pip install --disable-pip-version-check uv
+                                   ./venv/bin/uv python install cpython-${entry.PYTHON_VERSION}
+                                   ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                """
+                    )
+                }
+             } else {
+                withEnv([
+                    'PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\pipcache',
+                    'UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\uvtools',
+                    'UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\uvpython',
+                    'UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\uvcache',
+                ]){
+                    installMSVCRuntime('c:\\msvc_runtime\\')
+                    bat(
+                        label: 'Testing with tox',
+                        script: """python -m venv venv
+                                   .\\venv\\Scripts\\pip install --disable-pip-version-check uv
+                                   .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
+                                   .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                """
+                    )
+                }
+             }
+        }
+    } else {
+        if(isUnix()){
+            sh(
+                label: 'Testing with tox',
+                script: """python3 -m venv venv
+                           ./venv/bin/pip install --disable-pip-version-check uv
+                           ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                        """
+            )
+        } else {
+            bat(
+                label: 'Testing with tox',
+                script: """python -m venv venv
+                           .\\venv\\Scripts\\pip install --disable-pip-version-check uv
+                           .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
+                           .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                        """
+            )
+        }
+    }
+}
+
 def get_sonarqube_unresolved_issues(report_task_file){
     script{
 
@@ -156,7 +216,7 @@ def getWindowsToxEnvs(){
     node('docker && windows'){
         try{
             withEnv(['UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvpython']){
-                docker.image('python').inside('--mount source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython'){
+                docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python').inside('--mount source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython'){
                     return getToxEnvs()
                 }
             }
@@ -633,7 +693,7 @@ def call(){
                                                                             'VC_RUNTIME_INSTALLER_LOCATION=c:\\msvc_runtime\\'
                                                                         ]
                                                                     ){
-                                                                        docker.image('python').inside("--mount source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} --mount source=msvc-runtime,target=c:\\msvc_runtime\\"){
+                                                                        docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python').inside("--mount source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} --mount source=msvc-runtime,target=c:\\msvc_runtime\\"){
                                                                             checkout scm
                                                                             installMSVCRuntime('c:\\msvc_runtime\\')
                                                                             bat(label: 'Running Tox',
@@ -769,63 +829,7 @@ def call(){
                                                             try{
                                                                 checkout scm
                                                                 unstash 'PYTHON_PACKAGES'
-                                                                if(['linux', 'windows'].contains(entry.OS) && params.containsKey("INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()) && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]){
-                                                                    docker.image('python').inside(isUnix() ? '': "--mount type=volume,source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython --mount source=msvc-runtime,target=c:\\msvc_runtime\\" ){
-                                                                         if(isUnix()){
-                                                                            withEnv([
-                                                                                'PIP_CACHE_DIR=/tmp/pipcache',
-                                                                                'UV_TOOL_DIR=/tmp/uvtools',
-                                                                                'UV_PYTHON_INSTALL_DIR=/tmp/uvpython',
-                                                                                'UV_CACHE_DIR=/tmp/uvcache',
-                                                                            ]){
-                                                                                 sh(
-                                                                                    label: 'Testing with tox',
-                                                                                    script: """python3 -m venv venv
-                                                                                               ./venv/bin/pip install --disable-pip-version-check uv
-                                                                                               ./venv/bin/uv python install cpython-${entry.PYTHON_VERSION}
-                                                                                               ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                                                                            """
-                                                                                )
-                                                                            }
-                                                                         } else {
-                                                                            withEnv([
-                                                                                'PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\pipcache',
-                                                                                'UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\uvtools',
-                                                                                'UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\uvpython',
-                                                                                'UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\uvcache',
-                                                                            ]){
-                                                                                installMSVCRuntime('c:\\msvc_runtime\\')
-                                                                                bat(
-                                                                                    label: 'Testing with tox',
-                                                                                    script: """python -m venv venv
-                                                                                               .\\venv\\Scripts\\pip install --disable-pip-version-check uv
-                                                                                               .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                                                                                               .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                                                                            """
-                                                                                )
-                                                                            }
-                                                                         }
-                                                                    }
-                                                                } else {
-                                                                    if(isUnix()){
-                                                                        sh(
-                                                                            label: 'Testing with tox',
-                                                                            script: """python3 -m venv venv
-                                                                                       ./venv/bin/pip install --disable-pip-version-check uv
-                                                                                       ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                                                                    """
-                                                                        )
-                                                                    } else {
-                                                                        bat(
-                                                                            label: 'Testing with tox',
-                                                                            script: """python -m venv venv
-                                                                                       .\\venv\\Scripts\\pip install --disable-pip-version-check uv
-                                                                                       .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                                                                                       .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                                                                    """
-                                                                        )
-                                                                    }
-                                                                }
+                                                                testPackage(entry)
                                                             } finally{
                                                                 if(isUnix()){
                                                                     sh "${tool(name: 'Default', type: 'git')} clean -dfx"
@@ -846,7 +850,7 @@ def call(){
                     stage('End-user packages'){
                         environment {
                             APP_NAME="Speedwagon (UIUC Prescon Edition)"
-                            BOOTSTRAP_SCRIPT="./speedwagon_uiucprescon/speedwagon_bootstrap.py"
+                            BOOTSTRAP_SCRIPT="./contrib/speedwagon_bootstrap.py"
                         }
                         parallel{
                             stage('Mac Application Bundle x86_64'){
@@ -945,7 +949,7 @@ def call(){
                                     stage('Create .msi Installer'){
                                         agent {
                                            docker {
-                                               image 'python'
+                                               image 'python:3-windowsservercore-ltsc2022'
                                                label 'windows && x86_64 && docker'
                                                args '--mount source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython --mount source=msvc-runtime,target=c:\\msvc_runtime\\'
                                            }
@@ -1001,7 +1005,7 @@ def call(){
                                         agent {
                                             docker {
                                                 args '-u ContainerAdministrator'
-                                                image 'mcr.microsoft.com/windows/servercore:ltsc2019'
+                                                image 'mcr.microsoft.com/windows/servercore:ltsc2022'
                                                 label 'windows && docker && x86_64'
                                             }
                                         }
