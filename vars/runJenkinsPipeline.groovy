@@ -631,8 +631,12 @@ def call(){
                                                     {
                                                         node('docker && linux && x86_64'){
                                                             checkout scm
-                                                            def image = docker.build(UUID.randomUUID().toString(), '-f ci/docker/linux/jenkins/Dockerfile .')
-                                                            retry(3){
+                                                            def retryTimes = 3
+                                                            def image
+                                                            retry(retryTimes){
+                                                                image = docker.build(UUID.randomUUID().toString(), '-f ci/docker/linux/jenkins/Dockerfile .')
+                                                            }
+                                                            retry(retryTimes){
                                                                 try{
                                                                     image.inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp'){
                                                                         sh( label: 'Running Tox',
