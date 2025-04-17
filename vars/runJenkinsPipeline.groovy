@@ -792,61 +792,91 @@ def call(){
                                 environment{
                                     UV_INDEX_STRATEGY='unsafe-best-match'
                                 }
-                                steps{
-                                    customMatrix(
-                                        axes: [
-                                            [
-                                                name: 'PYTHON_VERSION',
-                                                values: ['3.9', '3.10', '3.11', '3.12','3.13']
-                                            ],
-                                            [
-                                                name: 'OS',
-                                                values: ['linux','macos','windows']
-                                            ],
-                                            [
-                                                name: 'ARCHITECTURE',
-                                                values: ['x86_64', 'arm64']
-                                            ],
-                                            [
-                                                name: 'PACKAGE_TYPE',
-                                                values: ['wheel', 'sdist'],
-                                            ]
-                                        ],
-                                        excludes: [
-                                            [
-                                                [
-                                                    name: 'OS',
-                                                    values: 'windows'
+                                stages{
+                                    stage('Twine Check'){
+                                        agent{
+                                            docker{
+                                                image 'python'
+                                                label 'linux && docker'
+                                                args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
+                                            }
+                                        }
+                                        environment{
+                                            UV_TOOL_DIR='/tmp/uvtools'
+                                            UV_CACHE_DIR='/tmp/uvcache'
+                                        }
+                                        steps{
+                                            catchError(buildResult: 'UNSTABLE', message: 'twine check found issues', stageResult: 'UNSTABLE') {
+                                                unstash 'PYTHON_PACKAGES'
+                                                sh(
+                                                    label: 'Checking with twine check',
+                                                    script: '''python3 -m venv venv && venv/bin/pip install --disable-pip-version-check uv
+                                                               trap "rm -rf venv" EXIT
+                                                               . ./venv/bin/activate
+                                                               uvx --with $(grep \'^twine\' requirements-dev.txt) twine check --strict  dist/*
+                                                            '''
+                                                )
+                                            }
+                                        }
+                                    }
+                                    stage('Package Matrix'){
+                                        steps{
+                                            customMatrix(
+                                                axes: [
+                                                    [
+                                                        name: 'PYTHON_VERSION',
+                                                        values: ['3.9', '3.10', '3.11', '3.12','3.13']
+                                                    ],
+                                                    [
+                                                        name: 'OS',
+                                                        values: ['linux','macos','windows']
+                                                    ],
+                                                    [
+                                                        name: 'ARCHITECTURE',
+                                                        values: ['x86_64', 'arm64']
+                                                    ],
+                                                    [
+                                                        name: 'PACKAGE_TYPE',
+                                                        values: ['wheel', 'sdist'],
+                                                    ]
                                                 ],
-                                                [
-                                                    name: 'ARCHITECTURE',
-                                                    values: 'arm64',
-                                                ]
-                                            ]
-                                        ],
-                                        when: {entry -> "INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase() && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]},
-                                        stages: [
-                                            { entry ->
-                                                stage('Test Package') {
-                                                    retry(3){
-                                                        node("${entry.OS} && ${entry.ARCHITECTURE} ${['linux', 'windows'].contains(entry.OS) ? '&& docker': ''}"){
-                                                            try{
-                                                                checkout scm
-                                                                unstash 'PYTHON_PACKAGES'
-                                                                testPackage(entry)
-                                                            } finally{
-                                                                if(isUnix()){
-                                                                    sh "${tool(name: 'Default', type: 'git')} clean -dfx"
-                                                                } else {
-                                                                    bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                excludes: [
+                                                    [
+                                                        [
+                                                            name: 'OS',
+                                                            values: 'windows'
+                                                        ],
+                                                        [
+                                                            name: 'ARCHITECTURE',
+                                                            values: 'arm64',
+                                                        ]
+                                                    ]
+                                                ],
+                                                when: {entry -> "INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase() && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]},
+                                                stages: [
+                                                    { entry ->
+                                                        stage('Test Package') {
+                                                            retry(3){
+                                                                node("${entry.OS} && ${entry.ARCHITECTURE} ${['linux', 'windows'].contains(entry.OS) ? '&& docker': ''}"){
+                                                                    try{
+                                                                        checkout scm
+                                                                        unstash 'PYTHON_PACKAGES'
+                                                                        testPackage(entry)
+                                                                    } finally{
+                                                                        if(isUnix()){
+                                                                            sh "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                        } else {
+                                                                            bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                        }
+                                                                    }
                                                                 }
                                                             }
                                                         }
                                                     }
-                                                }
-                                            }
-                                        ]
-                                    )
+                                                ]
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
