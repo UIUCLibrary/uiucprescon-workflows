@@ -6,6 +6,8 @@ astroid==3.3.9
     # via pylint
 babel==2.17.0
     # via sphinx
+backports-tarfile==1.2.0 ; python_full_version < '3.12' and platform_machine != 'ppc64le' and platform_machine != 's390x'
+    # via jaraco-context
 cachetools==5.5.2
     # via tox
 certifi==2025.1.31
@@ -13,6 +15,8 @@ certifi==2025.1.31
     #   -r requirements-gui.txt
     #   -r requirements.txt
     #   requests
+cffi==1.17.1 ; platform_machine != 'ppc64le' and platform_machine != 's390x' and platform_python_implementation != 'PyPy' and sys_platform == 'linux'
+    # via cryptography
 chardet==5.2.0
     # via tox
 charset-normalizer==3.4.1
@@ -28,12 +32,16 @@ colorama==0.4.6
     #   tox
 coverage==7.8.0
     # via -r requirements/requirements-dev.in
+cryptography==44.0.2 ; platform_machine != 'ppc64le' and platform_machine != 's390x' and sys_platform == 'linux'
+    # via secretstorage
 dill==0.4.0
     # via pylint
 distlib==0.3.9
     # via virtualenv
 docutils==0.21.2
-    # via sphinx
+    # via
+    #   readme-renderer
+    #   sphinx
 filelock==3.18.0
     # via
     #   tox
@@ -52,6 +60,8 @@ hathizip==0.1.11
     #   -r requirements-gui.txt
     #   -r requirements.txt
     #   speedwagon-uiucprescon (pyproject.toml)
+id==1.5.0
+    # via twine
 idna==3.10
     # via
     #   -r requirements-gui.txt
@@ -59,34 +69,59 @@ idna==3.10
     #   requests
 imagesize==1.4.1
     # via sphinx
+importlib-metadata==8.6.1 ; python_full_version < '3.12' and platform_machine != 'ppc64le' and platform_machine != 's390x'
+    # via keyring
 iniconfig==2.1.0
     # via pytest
 isort==6.0.1
     # via pylint
+jaraco-classes==3.4.0 ; platform_machine != 'ppc64le' and platform_machine != 's390x'
+    # via keyring
+jaraco-context==6.0.1 ; platform_machine != 'ppc64le' and platform_machine != 's390x'
+    # via keyring
+jaraco-functools==4.1.0 ; platform_machine != 'ppc64le' and platform_machine != 's390x'
+    # via keyring
+jeepney==0.9.0 ; platform_machine != 'ppc64le' and platform_machine != 's390x' and sys_platform == 'linux'
+    # via
+    #   keyring
+    #   secretstorage
 jinja2==3.1.6
     # via sphinx
+keyring==25.6.0 ; platform_machine != 'ppc64le' and platform_machine != 's390x'
+    # via twine
 lxml==5.3.2
     # via
     #   -r requirements-gui.txt
     #   -r requirements.txt
     #   hathivalidate
     #   speedwagon
+markdown-it-py==3.0.0
+    # via rich
 markupsafe==3.0.2
     # via jinja2
 mccabe==0.7.0
     # via
     #   flake8
     #   pylint
+mdurl==0.1.2
+    # via markdown-it-py
+more-itertools==10.6.0 ; platform_machine != 'ppc64le' and platform_machine != 's390x'
+    # via
+    #   jaraco-classes
+    #   jaraco-functools
 mypy==1.15.0
     # via -r requirements/requirements-dev.in
 mypy-extensions==1.0.0
     # via mypy
+nh3==0.2.21
+    # via readme-renderer
 packaging==24.2
     # via
     #   pyproject-api
     #   pytest
     #   sphinx
     #   tox
+    #   twine
 platformdirs==4.3.7
     # via
     #   pylint
@@ -109,12 +144,17 @@ py3exiv2bind==0.1.14.post1
     #   uiucprescon-packager
 pycodestyle==2.13.0
     # via flake8
+pycparser==2.22 ; platform_machine != 'ppc64le' and platform_machine != 's390x' and platform_python_implementation != 'PyPy' and sys_platform == 'linux'
+    # via cffi
 pydocstyle==6.3.0
     # via -r requirements/requirements-dev.in
 pyflakes==3.3.2
     # via flake8
 pygments==2.19.1
-    # via sphinx
+    # via
+    #   readme-renderer
+    #   rich
+    #   sphinx
 pyhathiprep==0.1.10
     # via
     #   -r requirements/requirements.in
@@ -159,18 +199,31 @@ pytz-deprecation-shim==0.1.0.post0
     #   -r requirements-gui.txt
     #   -r requirements.txt
     #   tzlocal
+pywin32-ctypes==0.2.3 ; platform_machine != 'ppc64le' and platform_machine != 's390x' and sys_platform == 'win32'
+    # via keyring
 pyyaml==6.0.2
     # via
     #   -r requirements-gui.txt
     #   -r requirements.txt
     #   hathivalidate
     #   speedwagon
+readme-renderer==44.0
+    # via twine
 requests==2.32.3
     # via
     #   -r requirements-gui.txt
     #   -r requirements.txt
+    #   id
+    #   requests-toolbelt
     #   speedwagon
     #   sphinx
+    #   twine
+requests-toolbelt==1.0.0
+    # via twine
+rfc3986==2.0.0
+    # via twine
+rich==14.0.0
+    # via twine
 roman-numerals-py==3.1.0
     # via sphinx
 ruamel-yaml==0.18.10
@@ -183,6 +236,8 @@ ruamel-yaml-clib==0.2.12 ; python_full_version < '3.13' and platform_python_impl
     #   -r requirements-gui.txt
     #   -r requirements.txt
     #   ruamel-yaml
+secretstorage==3.3.3 ; platform_machine != 'ppc64le' and platform_machine != 's390x' and sys_platform == 'linux'
+    # via keyring
 shiboken6==6.9.0
     # via
     #   -r requirements-gui.txt
@@ -216,6 +271,8 @@ sphinxcontrib-serializinghtml==2.0.0
 tomlkit==0.13.2
     # via pylint
 tox==4.25.0
+    # via -r requirements/requirements-dev.in
+twine==6.1.0
     # via -r requirements/requirements-dev.in
 types-requests==2.32.0.20250328
     # via -r requirements/requirements-dev.in
@@ -263,6 +320,9 @@ urllib3==2.4.0
     #   -r requirements-gui.txt
     #   -r requirements.txt
     #   requests
+    #   twine
     #   types-requests
 virtualenv==20.30.0
     # via tox
+zipp==3.21.0 ; python_full_version < '3.12' and platform_machine != 'ppc64le' and platform_machine != 's390x'
+    # via importlib-metadata
