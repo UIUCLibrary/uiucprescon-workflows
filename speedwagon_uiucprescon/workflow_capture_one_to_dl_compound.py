@@ -14,8 +14,6 @@ import speedwagon
 from speedwagon import validators, utils
 from speedwagon.job import Workflow
 
-__all__ = ['CaptureOneToDlCompoundWorkflow']
-
 
 CaptureOneToDlCompoundWorkflowTaskArgs = TypedDict(
     'CaptureOneToDlCompoundWorkflowTaskArgs',
@@ -32,127 +30,6 @@ UserArgs = TypedDict(
         "Output": str
     }
 )
-
-
-class CaptureOneToDlCompoundWorkflow(Workflow[UserArgs]):
-    """Settings for convert capture one tiff files to DL compound."""
-
-    name = "Convert CaptureOne TIFF to Digital Library Compound Object"
-    description = 'Input is a path to a folder of TIFF files all named with ' \
-                  'a bibid as a prefacing identifier, a final delimiting ' \
-                  'dash, and a sequence consisting of padded ' \
-                  'zeroes and a number' \
-                  '\n' \
-                  '\n' \
-                  'Output is a directory to put the new packages'
-    active = False
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        warnings.warn(
-            "Pending removal of Convert CaptureOne TIFF to Digital "
-            "Library Compound Object",
-            DeprecationWarning,
-            stacklevel=2
-        )
-
-    def discover_task_metadata(
-            self,
-            initial_results: List[Any],  # pylint: disable=unused-argument
-            additional_data: Mapping[  # pylint: disable=unused-argument
-                str,
-                Any
-            ],
-            user_args: UserArgs,
-    ) -> List[CaptureOneToDlCompoundWorkflowTaskArgs]:
-        """Loot at user settings and discover any data needed to build a task.
-
-        Args:
-            initial_results:
-            additional_data:
-            **user_args:
-
-        Returns:
-            Returns a list of data to create a job with
-
-        """
-        jobs: List[CaptureOneToDlCompoundWorkflowTaskArgs] = []
-        source_input = user_args["Input"]
-        dest = user_args["Output"]
-
-        package_factory = packager.PackageFactory(
-            packager.packages.CaptureOnePackage(delimiter="-"))
-
-        for package in package_factory.locate_packages(source_input):
-            new_job: CaptureOneToDlCompoundWorkflowTaskArgs = {
-                "package": package,
-                "output": dest,
-                "source_path": source_input
-            }
-            jobs.append(new_job)
-        return jobs
-
-    def create_new_task(
-        self,
-        task_builder: speedwagon.tasks.TaskBuilder,
-        job_args: CaptureOneToDlCompoundWorkflowTaskArgs
-    ) -> None:
-        """Generate a new task.
-
-        Args:
-            task_builder:
-            **job_args:
-
-        """
-        existing_package: Package = job_args['package']
-        new_package_root: str = job_args["output"]
-        source_path: str = job_args["source_path"]
-
-        package_id: str = typing.cast(
-            str,
-            existing_package.metadata[Metadata.ID]
-        )
-
-        packaging_task = PackageConverter(
-            source_path=source_path,
-            existing_package=existing_package,
-            new_package_root=new_package_root,
-            packaging_id=package_id
-
-        )
-        task_builder.add_subtask(packaging_task)
-
-    @staticmethod
-    def validate_user_options(**user_args: str) -> bool:
-        """Validate the user's arguments.
-
-        Raises a value error is something is not valid.
-
-        Args:
-            **user_args:
-
-        """
-        option_validators = validators.OptionValidator()
-        option_validators.register_validator(
-            'Output', validators.DirectoryValidation(key="Output")
-        )
-
-        option_validators.register_validator(
-            'Input', validators.DirectoryValidation(key="Input")
-        )
-        invalid_messages = []
-        for validation in [
-            option_validators.get("Output"),
-            option_validators.get("Input")
-
-        ]:
-            if not validation.is_valid(**user_args):
-                invalid_messages.append(validation.explanation(**user_args))
-
-        if len(invalid_messages) > 0:
-            raise ValueError("\n".join(invalid_messages))
-        return True
 
 
 class PackageConverter(speedwagon.tasks.Subtask[None]):

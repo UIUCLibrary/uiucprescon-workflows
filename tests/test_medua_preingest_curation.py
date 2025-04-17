@@ -128,26 +128,24 @@ class TestMedusaPreingestCuration:
         assert user_request_factory.confirm_removal.called is True
 
     @pytest.mark.parametrize(
-        "job_args, expected_class",
+        "job_args, expected_called",
         [
             (
                 {"type": "file", "path": "somefile"},
-                filesystem_tasks.DeleteFile,
+                filesystem_tasks.delete_file,
             ),
             (
                 {"type": "directory", "path": "someDirectory"},
-                filesystem_tasks.DeleteDirectory,
+                filesystem_tasks.delete_directory,
             ),
         ],
     )
-    def test_create_new_task(self, workflow, job_args, expected_class):
+    def test_create_new_task(self, workflow, job_args, expected_called):
         task_builder = Mock(name="task_builder")
         task_builder.add_subtask = Mock(name="add_subtask")
         workflow.create_new_task(task_builder, job_args)
 
-        assert isinstance(
-            task_builder.add_subtask.call_args[0][0], expected_class
-        )
+        assert task_builder.add_subtask.call_args[0][0].func == expected_called.func
 
     def test_initial_task_adds_finding_task(self, workflow, default_args):
         task_builder = Mock(spec=speedwagon.tasks.TaskBuilder)
@@ -162,7 +160,7 @@ class TestMedusaPreingestCuration:
         results = [
             Mock(
                 spec=speedwagon.tasks.Result,
-                source=filesystem_tasks.DeleteFile,
+                source=filesystem_tasks.delete_file,
                 data="some_file",
             )
         ]

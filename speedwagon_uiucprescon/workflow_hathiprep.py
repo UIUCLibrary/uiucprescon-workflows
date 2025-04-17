@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import itertools
 import os
+import pathlib
 from typing import List, Sequence, Dict, Optional, Union, Mapping, TypedDict
 
 import typing
 
+import inspect
 from uiucprescon.packager.packages import collection, HathiJp2, HathiTiff
 from uiucprescon.packager.common import Metadata
 from uiucprescon.packager import PackageFactory
@@ -227,6 +229,8 @@ class HathiPrepWorkflow(speedwagon.Workflow[UserArgs]):
         pretask_results: List[speedwagon.tasks.Result[List[str]]]
     ) -> Mapping[str, List[str]]:
         """Request title pages information for the packages from the user."""
+        # pickle.dumps(pretask_results)
+        # TODO: make pretask result pickleable
         if len(pretask_results) != 1:
             return {}
 
@@ -305,6 +309,26 @@ class HathiPrepWorkflow(speedwagon.Workflow[UserArgs]):
                f"\n  {num_yaml_files} meta.yml files"
 
 
+def _convert_dir_entry(start_point):
+    if not hasattr(start_point, "children"):
+        return
+
+    for name, data in inspect.getmembers(start_point):
+        if not isinstance(data, list):
+            continue
+        if name in  ["children", "files"]:
+            continue
+        contents = []
+        for c in data:
+            if not isinstance(c, os.DirEntry):
+                contents.append(c)
+                continue
+            contents.append(pathlib.Path(c))
+        setattr(start_point, name, contents)
+
+    for child in start_point.children:
+        _convert_dir_entry(child)
+
 class FindHathiPackagesTask(speedwagon.tasks.Subtask[List[typing.Any]]):
     image_types = {
         "TIFF": HathiTiff(),
@@ -316,9 +340,16 @@ class FindHathiPackagesTask(speedwagon.tasks.Subtask[List[typing.Any]]):
         self.image_type = image_type
         self.search_path = search_path
 
+
     def locate_packages(self) -> Sequence[collection.Package]:
         package_factory = PackageFactory(self.image_types[self.image_type])
-        return list(package_factory.locate_packages(self.search_path))
+        packages = []
+
+        for package in package_factory.locate_packages(self.search_path):
+            # print(package)
+            _convert_dir_entry(package)
+            packages.append(package)
+        return packages
 
     @staticmethod
     def _package_sortable_key(package: collection.Package) -> str:

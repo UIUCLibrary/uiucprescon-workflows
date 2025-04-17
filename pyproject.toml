@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=57.6.0", "wheel"]
+requires = ["setuptools>=77.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "speedwagon-uiucprescon"
 version = "0.3.2.dev4"
 dependencies = [
-    "speedwagon>=0.4.0b14",
+    "speedwagon>=0.4.0b16",
     "HathiZip>=0.1.10",
     "HathiValidate>=0.3.8",
     "pyhathiprep>=0.1.10",
@@ -18,7 +18,8 @@ dependencies = [
     "pykdu-compress>=0.1.9",
     "typing_extensions;python_version<'3.11'"
 ]
-license = { file="LICENSE"}
+license = "NCSA"
+license-files = ["LICENSE"]
 description = "Collection of tools and workflows for DS"
 maintainers = [
     { name="Henry Borchers", email="hborcher@illinois.edu" }
@@ -26,6 +27,8 @@ maintainers = [
 authors = [
     {name="University Library at The University of Illinois at Urbana Champaign: Preservation Services", email="prescons@library.illinois.edu"}
 ]
+readme = { file= "README.md", content-type="text/markdown" }
+
 [project.optional-dependencies]
 gui = ["speedwagon[Qt]"]
 
