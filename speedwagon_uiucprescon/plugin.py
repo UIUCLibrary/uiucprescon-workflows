@@ -47,9 +47,6 @@ from .workflow_zip_packages import ZipPackagesWorkflow
 
 # Deprecated workflows
 
-from .workflow_capture_one_to_dl_compound import (
-    CaptureOneToDlCompoundWorkflow,
-)
 from .workflow_capture_one_to_hathi import (
     CaptureOneToHathiTiffPackageWorkflow,
 )
@@ -85,7 +82,6 @@ active_workflows: typing.List[typing.Type[speedwagon.Workflow[typing.Any]]] = [
 deprecated_workflows: typing.List[
     typing.Type[speedwagon.Workflow[typing.Any]]
 ] = [
-    CaptureOneToDlCompoundWorkflow,
     CaptureOneToHathiTiffPackageWorkflow,
     ConvertTiffToHathiJp2Workflow,
     RegenerateChecksumBatchSingleWorkflow,

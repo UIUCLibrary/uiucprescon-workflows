@@ -213,8 +213,8 @@ class MedusaPreingestCuration(speedwagon.Workflow[UserArgs]):
         """
         items_deleted = [
             result.data for result in results if result.source in [
-                filesystem_tasks.DeleteFile,
-                filesystem_tasks.DeleteDirectory
+                filesystem_tasks.delete_file,
+                filesystem_tasks.delete_directory
             ]
         ]
 
@@ -241,11 +241,11 @@ class MedusaPreingestCuration(speedwagon.Workflow[UserArgs]):
         """
         if job_args['type'] == "file":
             task_builder.add_subtask(
-                filesystem_tasks.DeleteFile(job_args["path"])
+                filesystem_tasks.delete_file(job_args["path"])
             )
         elif job_args['type'] == "directory":
             task_builder.add_subtask(
-                filesystem_tasks.DeleteDirectory(job_args["path"])
+                filesystem_tasks.delete_directory(job_args["path"])
             )
 
 
