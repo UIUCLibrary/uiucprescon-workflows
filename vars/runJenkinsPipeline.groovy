@@ -913,12 +913,10 @@ def call(){
                                             }
                                         }
                                     }
+                                    archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                    stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
                                 }
                                 post{
-                                    success{
-                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
-                                    }
                                     cleanup{
                                         cleanWs(
                                             deleteDirs: true,
@@ -956,13 +954,11 @@ def call(){
                                                     """
                                                 }
                                         }
-                                    }
-                                }
-                                post{
-                                    success{
                                         archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
                                         stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
                                     }
+                                }
+                                post{
                                     cleanup{
                                         cleanWs(
                                             deleteDirs: true,
@@ -1017,12 +1013,10 @@ def call(){
                                                     }
                                                 }
                                             }
+                                            archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
+                                            stash includes: 'dist/*.msi', name: 'STANDALONE_WINDOWS_X86_64_INSTALLER'
                                         }
                                         post{
-                                            success{
-                                                archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
-                                                stash includes: 'dist/*.msi', name: 'STANDALONE_WINDOWS_X86_64_INSTALLER'
-                                            }
                                             cleanup{
                                                 cleanWs(
                                                     deleteDirs: true,
