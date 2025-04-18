@@ -1,18 +1,41 @@
-def deployStandalone(glob, url) {
+def createChocolateyConfigFile(configJsonFile, installerPackage, url){
+    def deployJsonMetadata = [
+        "PackageVersion": readTOML( file: 'pyproject.toml')['project'].version,
+        "url": url,
+        "sha256": sha256(installerPackage.path),
+    ]
+    writeJSON( json: deployJsonMetadata, file: configJsonFile, pretty: 2)
+}
+
+def deploySingleStandalone(file, url, authentication) {
     script{
-        findFiles(glob: glob).each{
-            try{
-                def encodedUrlFileName = new URI(null, null, it.name, null).toASCIIString()
-                def putResponse = httpRequest authentication: NEXUS_CREDS, httpMode: 'PUT', uploadFile: it.path, url: "${url}/${encodedUrlFileName}", wrapAsMultipart: false
-                echo "http request response: ${putResponse.content}"
-                echo "Deployed ${it} -> SHA256: ${sha256(it.path)}"
-            } catch(Exception e){
-                echo "${e}"
-                throw e;
-            }
+        try{
+            def encodedUrlFileName = new URI(null, null, file.name, null).toASCIIString()
+            def newUrl = "${url}/${encodedUrlFileName}"
+            def putResponse = httpRequest authentication: authentication, httpMode: 'PUT', uploadFile: file.path, url: "${newUrl}", wrapAsMultipart: false
+            return newUrl
+        } catch(Exception e){
+            echo "${e}"
+            throw e;
         }
     }
 }
+
+// def deployStandalone(glob, url) {
+//     script{
+//         findFiles(glob: glob).each{
+//             try{
+//                 def encodedUrlFileName = new URI(null, null, it.name, null).toASCIIString()
+//                 def putResponse = httpRequest authentication: NEXUS_CREDS, httpMode: 'PUT', uploadFile: it.path, url: "${url}/${encodedUrlFileName}", wrapAsMultipart: false
+//                 echo "http request response: ${putResponse.content}"
+//                 echo "Deployed ${it} -> SHA256: ${sha256(it.path)}"
+//             } catch(Exception e){
+//                 echo "${e}"
+//                 throw e;
+//             }
+//         }
+//     }
+// }
 
 def testPackage(entry){
     if(['linux', 'windows'].contains(entry.OS) && params.containsKey("INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()) && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]){
@@ -250,6 +273,36 @@ def getMsiInstallerPath(){
 }
 
 
+def submitToSonarQube(sonarToken, version){
+    withEnv([
+            "VERSION=${version}",
+        ]
+    ){
+        withSonarQubeEnv(installationName:'sonarcloud', credentialsId: sonarToken) {
+           def sourceInstruction
+           if (env.CHANGE_ID){
+               sourceInstruction = '-Dsonar.pullrequest.key=$CHANGE_ID -Dsonar.pullrequest.base=$BRANCH_NAME'
+           } else{
+               sourceInstruction = '-Dsonar.branch.name=$BRANCH_NAME'
+           }
+           sh(
+               label: 'Running Sonar Scanner',
+               script: """. ./venv/bin/activate
+                           uv tool run pysonar-scanner -Dsonar.projectVersion=$VERSION -Dsonar.buildString=\"$BUILD_TAG\" ${sourceInstruction}
+                       """
+           )
+        }
+        timeout(time: 1, unit: 'HOURS') {
+           def sonarqube_result = waitForQualityGate(abortPipeline: false)
+           if (sonarqube_result.status != 'OK') {
+               unstable "SonarQube quality gate: ${sonarqube_result.status}"
+           }
+           def outstandingIssues = get_sonarqube_unresolved_issues('.scannerwork/report-task.txt')
+           writeJSON file: 'reports/sonar-report.json', json: outstandingIssues
+        }
+    }
+}
+
 def call(){
     library(
         identifier: 'JenkinsPythonHelperLibrary@2024.12.0',
@@ -310,26 +363,24 @@ def call(){
                               uvx --from sphinx --with-editable . --with-requirements requirements-dev.txt sphinx-build -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
                               uvx --from sphinx --with-editable . --with-requirements requirements-dev.txt sphinx-build -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
                               ''')
+                        script{
+                            def props = readTOML( file: 'pyproject.toml')['project']
+                            zip archive: true, dir: 'build/docs/html', glob: '', zipFile: "dist/${props.name}-${props.version}.doc.zip"
+                            stash includes: 'dist/*.doc.zip,build/docs/html/**', name: 'DOCS_ARCHIVE'
+                        }
                         sh(label: 'Building PDF docs',
                            script: '''make -C build/docs/latex
                                         mkdir -p dist/docs
                                         mv build/docs/latex/*.pdf dist/docs/
                                         '''
                         )
+                        stash includes: 'dist/docs/*.pdf', name: 'SPEEDWAGON_DOC_PDF'
+                        archiveArtifacts artifacts: 'dist/docs/*.pdf'
                     }
                 }
                 post{
                     always{
                         recordIssues(tools: [sphinxBuild(pattern: 'logs/build_sphinx_html.log')])
-                    }
-                    success{
-                        stash includes: 'dist/docs/*.pdf', name: 'SPEEDWAGON_DOC_PDF'
-                        script{
-                            def props = readTOML( file: 'pyproject.toml')['project']
-                            zip archive: true, dir: 'build/docs/html', glob: '', zipFile: "dist/${props.name}-${props.version}.doc.zip"
-                        }
-                        stash includes: 'dist/*.doc.zip,build/docs/html/**', name: 'DOCS_ARCHIVE'
-                        archiveArtifacts artifacts: 'dist/docs/*.pdf'
                     }
                     cleanup{
                         cleanWs(
@@ -495,10 +546,10 @@ def call(){
                                                                    flake8 speedwagon_uiucprescon -j 1 --tee --output-file=logs/flake8.log
                                                                    '''
                                                     }
+                                                    stash includes: 'logs/flake8.log', name: 'FLAKE8_REPORT'
                                                 }
                                                 post {
                                                     always {
-                                                          stash includes: 'logs/flake8.log', name: 'FLAKE8_REPORT'
                                                           recordIssues(tools: [flake8(pattern: 'logs/flake8.log')])
                                                     }
                                                 }
@@ -532,7 +583,6 @@ def call(){
                                         }
                                     }
                                 }
-
                             }
                             stage('Run Sonarqube Analysis'){
                                 options{
@@ -558,34 +608,11 @@ def call(){
                                     SONAR_USER_HOME='/tmp/sonar'
                                 }
                                 steps{
-                                    script{
-                                        withSonarQubeEnv(installationName:'sonarcloud', credentialsId: params.SONARCLOUD_TOKEN) {
-                                           def sourceInstruction
-                                           if (env.CHANGE_ID){
-                                               sourceInstruction = '-Dsonar.pullrequest.key=$CHANGE_ID -Dsonar.pullrequest.base=$BRANCH_NAME'
-                                           } else{
-                                               sourceInstruction = '-Dsonar.branch.name=$BRANCH_NAME'
-                                           }
-                                           sh(
-                                               label: 'Running Sonar Scanner',
-                                               script: """. ./venv/bin/activate
-                                                           uv tool run pysonar-scanner -Dsonar.projectVersion=$VERSION -Dsonar.buildString=\"$BUILD_TAG\" ${sourceInstruction}
-                                                       """
-                                           )
-                                       }
-                                       timeout(time: 1, unit: 'HOURS') {
-                                           def sonarqube_result = waitForQualityGate(abortPipeline: false)
-                                           if (sonarqube_result.status != 'OK') {
-                                               unstable "SonarQube quality gate: ${sonarqube_result.status}"
-                                           }
-                                           def outstandingIssues = get_sonarqube_unresolved_issues('.scannerwork/report-task.txt')
-                                           writeJSON file: 'reports/sonar-report.json', json: outstandingIssues
-                                       }
-                                       milestone label: 'sonarcloud'
-                                    }
+                                    submitToSonarQube(params.SONARCLOUD_TOKEN, env.VERSION)
                                 }
                                 post {
                                     always{
+                                        milestone ordinal: 1, label: 'sonarcloud'
                                         recordIssues(tools: [sonarQube(pattern: 'reports/sonar-report.json')])
                                     }
                                 }
@@ -768,11 +795,9 @@ def call(){
                                                    uv build
                                                 '''
                                     )
+                                    stash includes: 'dist/*.whl,dist/*.tar.gz,dist/*.zip', name: 'PYTHON_PACKAGES'
                                 }
                                 post{
-                                    always{
-                                        stash includes: 'dist/*.whl,dist/*.tar.gz,dist/*.zip', name: 'PYTHON_PACKAGES'
-                                    }
                                     cleanup{
                                         cleanWs(
                                             deleteDirs: true,
@@ -1120,7 +1145,7 @@ def call(){
                 options{
                     lock('uiucpreson_workflows-deploy')
                 }
-                parallel {
+                stages {
                     stage('Deploy to pypi') {
                         environment{
                             PIP_CACHE_DIR='/tmp/pipcache'
@@ -1265,62 +1290,131 @@ def call(){
                                 string defaultValue: "speedwagon_uiuc/${getVersion()}", description: 'subdirectory to store artifact', name: 'archiveFolder'
                             }
                         }
-                        stages{
-                            stage('Deploy Installers'){
+                        parallel{
+                            stage('Deploy Standalone Applications: Windows x86_64'){
                                 agent any
-                                options {
-                                    skipDefaultCheckout(true)
+                                when{
+                                    equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
+                                    beforeAgent true
                                 }
-                                stages{
-                                    stage('Include Mac Bundle Installer for Deployment'){
-                                        when{
-                                            allOf{
-                                                equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-                                                anyOf{
-                                                    equals expected: true, actual: params['INCLUDE_MACOS-X86_64']
-                                                    equals expected: true, actual: params['INCLUDE_MACOS-ARM64']
-
-                                                }
-                                            }
-                                        }
-                                        steps {
-                                            script{
-                                                if(params['INCLUDE_MACOS-X86_64']){
-                                                    unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
-                                                }
-                                                if(params['INCLUDE_MACOS-ARM64']){
-                                                    unstash 'APPLE_APPLICATION_BUNDLE_M1'
-                                                }
-                                            }
-                                        }
-                                    }
-                                    stage('Include Windows Installer(s) for Deployment'){
-                                        when{
-                                            equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
-                                        }
-                                        steps {
-                                            unstash 'STANDALONE_WINDOWS_X86_64_INSTALLER'
-                                        }
-                                    }
-                                    stage('Deploy'){
-                                        steps {
-                                            unstash 'SPEEDWAGON_DOC_PDF'
-                                            deployStandalone('dist/*.msi,dist/*.exe,dist/*.zip,dist/*.tar.gz,dist/docs/*.pdf,dist/*.dmg', "${SERVER_URL}/${archiveFolder}")
-                                        }
+                                environment{
+                                    GENERATED_CHOCOLATEY_CONFIG_FILE='dist/chocolatey/config.json'
+                                }
+                                steps{
+                                    script{
+                                        unstash 'STANDALONE_WINDOWS_X86_64_INSTALLER'
+                                        def deploymentFile = findFiles(glob: 'dist/*.msi')[0]
+                                        def deployedUrl = deploySingleStandalone(deploymentFile, "${SERVER_URL}/${archiveFolder}", NEXUS_CREDS)
+                                        createChocolateyConfigFile(env.GENERATED_CHOCOLATEY_CONFIG_FILE, deploymentFile, deployedUrl)
+                                        archiveArtifacts artifacts: env.GENERATED_CHOCOLATEY_CONFIG_FILE
+                                        echo "Deployed ${deploymentFile} to ${deployedUrl} -> SHA256: ${sha256(deploymentFile.path)}"
                                     }
                                 }
                                 post{
-                                    cleanup{
-                                        cleanWs(
-                                            deleteDirs: true,
-                                            patterns: [
-                                                [pattern: 'dist.*', type: 'INCLUDE']
-                                            ]
-                                        )
+                                    success{
+                                        echo "Use ${env.GENERATED_CHOCOLATEY_CONFIG_FILE} for deploying to Chocolatey with https://github.com/UIUCLibrary/chocolatey-hosted-public.git. Found in the artifacts for this build."
+                                        echo "${readFile(env.GENERATED_CHOCOLATEY_CONFIG_FILE)}"
+                                    }
+                                }
+                            }
+                            stage('Deploy Standalone Applications: MacOS ARM64'){
+                                agent any
+                                when{
+                                    equals expected: true, actual: params['INCLUDE_MACOS-ARM64']
+                                    beforeAgent true
+                                }
+                                steps{
+                                    script{
+                                        unstash 'APPLE_APPLICATION_BUNDLE_M1'
+                                        def deploymentFile = findFiles(glob: 'dist/*.dmg')[0]
+                                        def deployedUrl = deploySingleStandalone(deploymentFile, "${SERVER_URL}/${archiveFolder}", NEXUS_CREDS)
+                                        echo "Deployed ${deploymentFile} to ${deployedUrl} -> SHA256: ${sha256(deploymentFile.path)}"
+                                    }
+                                }
+                            }
+                            stage('Deploy Standalone Applications: MacOS X86_64'){
+                                agent any
+                                when{
+                                    equals expected: true, actual: params['INCLUDE_MACOS-X86_64']
+                                    beforeAgent true
+                                }
+                                steps{
+                                    script{
+                                        unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                        def deploymentFile = findFiles(glob: 'dist/*.dmg')[0]
+                                        def deployedUrl = deploySingleStandalone(deploymentFile, "${SERVER_URL}/${archiveFolder}", NEXUS_CREDS)
+                                        echo "Deployed ${deploymentFile} to ${deployedUrl} -> SHA256: ${sha256(deploymentFile.path)}"
+                                    }
+                                }
+                            }
+                            stage('Deploy Standalone Applications: Documentation'){
+                                agent any
+                                steps{
+                                    script{
+                                        unstash 'SPEEDWAGON_DOC_PDF'
+                                        def deploymentFile = findFiles(glob: 'dist/docs/*.pdf')[0]
+                                        def deployedUrl = deploySingleStandalone(deploymentFile, "${SERVER_URL}/${archiveFolder}", NEXUS_CREDS)
+                                        echo "Deployed ${deploymentFile} to ${deployedUrl} -> SHA256: ${sha256(deploymentFile.path)}"
                                     }
                                 }
                             }
                         }
+//                         stages{
+//                             stage('Deploy Installers'){
+//                                 agent any
+//                                 options {
+//                                     skipDefaultCheckout(true)
+//                                 }
+//                                 stages{
+//                                     stage('Include Mac Bundle Installer for Deployment'){
+//                                         when{
+//                                             allOf{
+//                                                 equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
+//                                                 anyOf{
+//                                                     equals expected: true, actual: params['INCLUDE_MACOS-X86_64']
+//                                                     equals expected: true, actual: params['INCLUDE_MACOS-ARM64']
+//
+//                                                 }
+//                                             }
+//                                         }
+//                                         steps {
+//                                             script{
+//                                                 if(params['INCLUDE_MACOS-X86_64']){
+//                                                     unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
+//                                                 }
+//                                                 if(params['INCLUDE_MACOS-ARM64']){
+//                                                     unstash 'APPLE_APPLICATION_BUNDLE_M1'
+//                                                 }
+//                                             }
+//                                         }
+//                                     }
+//                                     stage('Include Windows Installer(s) for Deployment'){
+//                                         when{
+//                                             equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
+//                                         }
+//                                         steps {
+//                                             unstash 'STANDALONE_WINDOWS_X86_64_INSTALLER'
+//                                         }
+//                                     }
+//                                     stage('Deploy'){
+//                                         steps {
+//                                             unstash 'SPEEDWAGON_DOC_PDF'
+//                                             deployStandalone('dist/*.msi,dist/*.exe,dist/*.zip,dist/*.tar.gz,dist/docs/*.pdf,dist/*.dmg', "${SERVER_URL}/${archiveFolder}")
+//                                         }
+//                                     }
+//                                 }
+//                                 post{
+//                                     cleanup{
+//                                         cleanWs(
+//                                             deleteDirs: true,
+//                                             patterns: [
+//                                                 [pattern: 'dist.*', type: 'INCLUDE']
+//                                             ]
+//                                         )
+//                                     }
+//                                 }
+//                             }
+//                         }
                     }
                 }
             }
