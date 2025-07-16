@@ -373,8 +373,8 @@ def call(){
                               trap "rm -rf venv" EXIT
                               . ./venv/bin/activate
                               pip install --disable-pip-version-check uv
-                              uvx --from sphinx --with-editable . --with-requirements requirements-dev.txt sphinx-build -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
-                              uvx --from sphinx --with-editable . --with-requirements requirements-dev.txt sphinx-build -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
+                              uvx --from sphinx --with-editable . --constraint requirements-dev.txt sphinx-build -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
+                              uvx --from sphinx --with-editable . --constraint requirements-dev.txt sphinx-build -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
                               ''')
                         script{
                             def props = readTOML( file: 'pyproject.toml')['project']
