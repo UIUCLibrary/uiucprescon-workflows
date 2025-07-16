@@ -39,7 +39,15 @@ def deploySingleStandalone(file, url, authentication) {
 
 def testPackage(entry){
     if(['linux', 'windows'].contains(entry.OS) && params.containsKey("INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()) && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]){
-        docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python').inside(isUnix() ? '': "--mount type=volume,source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython --mount source=msvc-runtime,target=c:\\msvc_runtime\\" ){
+        docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
+            .inside(
+                isUnix() ?
+                '--mount source=python-tmp-uiucpreson_workflows,target=/tmp':
+                '--mount type=volume,source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                 --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                 --mount type=volume,source=msvc-runtime,target=c:\\msvc_runtime \
+                 --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
+            ){
              if(isUnix()){
                 withEnv([
                     'PIP_CACHE_DIR=/tmp/pipcache',
@@ -58,10 +66,10 @@ def testPackage(entry){
                 }
              } else {
                 withEnv([
-                    'PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\pipcache',
-                    'UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\uvtools',
-                    'UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\uvpython',
-                    'UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\uvcache',
+                    'PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache',
+                    'UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools',
+                    'UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython',
+                    'UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache',
                 ]){
                     installMSVCRuntime('c:\\msvc_runtime\\')
                     bat(
@@ -237,12 +245,17 @@ def getLinusToxEnvs(){
 
 def getWindowsToxEnvs(){
     node('docker && windows'){
+        checkout scm
         try{
-            withEnv(['UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvpython']){
-                docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python').inside('--mount source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython'){
+            docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
+                .inside("\
+                    --mount type=volume,source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} \
+                    --mount type=volume,source=pipcache,target=${env.PIP_CACHE_DIR} \
+                    --mount type=volume,source=uv_cache_dir,target=${env.UV_CACHE_DIR}\
+                    "
+                ){
                     return getToxEnvs()
                 }
-            }
         } finally{
             bat "${tool(name: 'Default', type: 'git')} clean -dfx"
         }
@@ -360,8 +373,8 @@ def call(){
                               trap "rm -rf venv" EXIT
                               . ./venv/bin/activate
                               pip install --disable-pip-version-check uv
-                              uvx --from sphinx --with-editable . --with-requirements requirements-dev.txt sphinx-build -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
-                              uvx --from sphinx --with-editable . --with-requirements requirements-dev.txt sphinx-build -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
+                              uvx --from sphinx --with-editable . --constraint requirements-dev.txt sphinx-build -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
+                              uvx --from sphinx --with-editable . --constraint requirements-dev.txt sphinx-build -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
                               ''')
                         script{
                             def props = readTOML( file: 'pyproject.toml')['project']
@@ -700,11 +713,11 @@ def call(){
                                 }
                                 environment{
                                     UV_INDEX_STRATEGY='unsafe-best-match'
-                                    PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\pipcache'
-                                    UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvtools'
-                                    UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvpython'
-                                    UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvcache'
-                                    VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime\\'
+                                    PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\pipcache'
+                                    UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvtools'
+                                    UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvpython'
+                                    UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
+                                    VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime'
                                 }
                                 steps{
                                     script{
@@ -721,12 +734,18 @@ def call(){
                                                                         [
                                                                             "PYTHON_VERSION=${version}",
                                                                             "TOX_ENV=${toxEnv}",
-                                                                            'VC_RUNTIME_INSTALLER_LOCATION=c:\\msvc_runtime\\'
                                                                         ]
                                                                     ){
-                                                                        docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python').inside("--mount source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} --mount source=msvc-runtime,target=c:\\msvc_runtime\\"){
-                                                                            checkout scm
-                                                                            installMSVCRuntime('c:\\msvc_runtime\\')
+                                                                        checkout scm
+                                                                        docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
+                                                                            .inside("\
+                                                                                --mount type=volume,source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} \
+                                                                                --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
+                                                                                --mount type=volume,source=pipcache,target=${env.PIP_CACHE_DIR} \
+                                                                                --mount type=volume,source=uv_cache_dir,target=${env.UV_CACHE_DIR}\
+                                                                                "
+                                                                            ){
+                                                                            installMSVCRuntime(env.VC_RUNTIME_INSTALLER_LOCATION)
                                                                             bat(label: 'Running Tox',
                                                                                 script: '''python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv
                                                                                            venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
@@ -1000,21 +1019,27 @@ def call(){
                                 when{
                                     equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                                 }
+                                environment{
+                                  PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\pipcache'
+                                  UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvtools'
+                                  UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvpython'
+                                  UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
+                                  VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime'
+                                }
                                 stages{
                                     stage('Create .msi Installer'){
                                         agent {
                                            docker {
-                                               image 'python:3-windowsservercore-ltsc2022'
+                                               image 'python'
                                                label 'windows && x86_64 && docker'
-                                               args '--mount source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\uvpython --mount source=msvc-runtime,target=c:\\msvc_runtime\\'
+                                               args " \
+                                                    --mount type=volume,source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} \
+                                                    --mount type=volume,source=pipcache,target=${env.PIP_CACHE_DIR} \
+                                                    --mount type=volume,source=uv_cache_dir,target=${env.UV_CACHE_DIR} \
+                                                    --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
+                                                    "
                                            }
-                                       }
-                                       environment{
-                                          PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\pipcache'
-                                          UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvtools'
-                                          UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvpython'
-                                          UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\jenkins-cache\\uvcache'
-                                      }
+                                        }
                                         steps{
                                             unstash 'PYTHON_PACKAGES'
                                             script{
