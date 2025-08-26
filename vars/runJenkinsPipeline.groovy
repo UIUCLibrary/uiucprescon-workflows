@@ -121,7 +121,7 @@ def testPackage(entry){
 def get_sonarqube_unresolved_issues(report_task_file){
     script{
 
-        def props = readProperties  file: '.scannerwork/report-task.txt'
+        def props = readProperties  file: report_task_file
         def response = httpRequest url : props['serverUrl'] + "/api/issues/search?componentKeys=" + props['projectKey'] + "&resolved=no"
         def outstandingIssues = readJSON text: response.content
         return outstandingIssues
@@ -302,6 +302,7 @@ def getMsiInstallerPath(){
 def submitToSonarQube(sonarToken, version){
     withEnv([
             "VERSION=${version}",
+            "SONAR_TOKEN=${sonarToken}"
         ]
     ){
         withSonarQubeEnv(installationName:'sonarcloud', credentialsId: sonarToken) {
@@ -311,20 +312,21 @@ def submitToSonarQube(sonarToken, version){
            } else{
                sourceInstruction = '-Dsonar.branch.name=$BRANCH_NAME'
            }
-           sh(
-               label: 'Running Sonar Scanner',
-               script: """. ./venv/bin/activate
-                           uv tool run pysonar-scanner -Dsonar.projectVersion=$VERSION -Dsonar.buildString=\"$BUILD_TAG\" ${sourceInstruction}
-                       """
-           )
+           withCredentials([string(credentialsId: sonarToken, variable: 'token')]) {
+               sh(
+                   label: 'Running Sonar Scanner',
+                   script: """. ./venv/bin/activate
+                               uvx pysonar -Dsonar.projectVersion=$VERSION -Dsonar.buildString=\"$BUILD_TAG\" ${sourceInstruction} -t \$token
+                           """
+               )
+           }
         }
         timeout(time: 1, unit: 'HOURS') {
            def sonarqube_result = waitForQualityGate(abortPipeline: false)
            if (sonarqube_result.status != 'OK') {
                unstable "SonarQube quality gate: ${sonarqube_result.status}"
            }
-           def outstandingIssues = get_sonarqube_unresolved_issues('.scannerwork/report-task.txt')
-           writeJSON file: 'reports/sonar-report.json', json: outstandingIssues
+           writeJSON file: 'reports/sonar-report.json', json: get_sonarqube_unresolved_issues('.sonar/report-task.txt')
         }
     }
 }
