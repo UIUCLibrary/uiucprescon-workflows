@@ -373,7 +373,6 @@ def call(){
                 }
                 environment{
                     PIP_CACHE_DIR = '/tmp/pipcache'
-                    UV_INDEX_STRATEGY = 'unsafe-best-match'
                     UV_TOOL_DIR = '/tmp/uvtools'
                     UV_PYTHON_INSTALL_DIR = '/tmp/uvpython'
                     UV_CACHE_DIR = '/tmp/uvcache'
@@ -436,7 +435,6 @@ def call(){
                         }
                         environment{
                             PIP_CACHE_DIR='/tmp/pipcache'
-                            UV_INDEX_STRATEGY='unsafe-best-match'
                             UV_TOOL_DIR='/tmp/uvtools'
                             UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
                             UV_CACHE_DIR='/tmp/uvcache'
@@ -668,7 +666,6 @@ def call(){
                                 }
                                 environment{
                                     PIP_CACHE_DIR='/tmp/pipcache'
-                                    UV_INDEX_STRATEGY='unsafe-best-match'
                                     UV_TOOL_DIR='/tmp/uvtools'
                                     UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
                                     UV_CACHE_DIR='/tmp/uvcache'
@@ -725,7 +722,6 @@ def call(){
                                     expression {return nodesByLabel('windows && docker && x86').size() > 0}
                                 }
                                 environment{
-                                    UV_INDEX_STRATEGY='unsafe-best-match'
                                     PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\pipcache'
                                     UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvtools'
                                     UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvpython'
@@ -812,7 +808,6 @@ def call(){
                                 }
                                 environment{
                                     PIP_CACHE_DIR='/tmp/pipcache'
-                                    UV_INDEX_STRATEGY='unsafe-best-match'
                                     UV_CACHE_DIR='/tmp/uvcache'
                                 }
                                 options {
@@ -845,9 +840,6 @@ def call(){
                             stage('Testing Python Package'){
                                 when{
                                     equals expected: true, actual: params.TEST_PACKAGES
-                                }
-                                environment{
-                                    UV_INDEX_STRATEGY='unsafe-best-match'
                                 }
                                 stages{
                                     stage('Twine Check'){
@@ -1052,7 +1044,7 @@ def call(){
                                                             script: '''python -m pip install --disable-pip-version-check uv
                                                                        $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
                                                                        Write-Host "APP_NAME = $Env:APP_NAME"
-                                                                       uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME" --app-bootstrap-script="$Env:BOOTSTRAP_SCRIPT"
+                                                                       uvx --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME" --app-bootstrap-script="$Env:BOOTSTRAP_SCRIPT"
                                                                     '''
                                                         )
                                                     }
@@ -1169,7 +1161,6 @@ def call(){
                     stage('Deploy to pypi') {
                         environment{
                             PIP_CACHE_DIR='/tmp/pipcache'
-                            UV_INDEX_STRATEGY='unsafe-best-match'
                             UV_TOOL_DIR='/tmp/uvtools'
                             UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
                             UV_CACHE_DIR='/tmp/uvcache'
@@ -1204,12 +1195,7 @@ def call(){
                         }
                         steps{
                             unstash 'PYTHON_PACKAGES'
-                            withEnv(
-                                [
-                                    "TWINE_REPOSITORY_URL=${SERVER_URL}",
-                                    'UV_INDEX_STRATEGY=unsafe-best-match'
-                                ]
-                            ){
+                            withEnv(["TWINE_REPOSITORY_URL=${SERVER_URL}"]){
                                 withCredentials(
                                     [
                                         usernamePassword(
@@ -1250,7 +1236,6 @@ def call(){
                         }
                          environment{
                             PIP_CACHE_DIR='/tmp/pipcache'
-                            UV_INDEX_STRATEGY='unsafe-best-match'
                             UV_TOOL_DIR='/tmp/uvtools'
                             UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
                             UV_CACHE_DIR='/tmp/uvcache'
