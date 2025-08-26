@@ -7,6 +7,19 @@ def createChocolateyConfigFile(configJsonFile, installerPackage, url){
     writeJSON( json: deployJsonMetadata, file: configJsonFile, pretty: 2)
 }
 
+def makeMacPackage(){
+    findFiles(glob: 'dist/*.whl').each{ wheel ->
+        withEnv(["WHEEL=${wheel.path}"]){
+            sh """
+                python3 -m venv venv
+                . ./venv/bin/activate
+                pip install --disable-pip-version-check uv
+                uvx --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\" --app-bootstrap-script=\"$BOOTSTRAP_SCRIPT\"
+                """
+        }
+    }
+}
+
 def deploySingleStandalone(file, url, authentication) {
     script{
         try{
@@ -946,16 +959,7 @@ def call(){
                                 steps{
                                     unstash 'PYTHON_PACKAGES'
                                     script{
-                                        findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                            withEnv(["WHEEL=${wheel.path}"]){
-                                            sh """
-                                                python3 -m venv venv
-                                                . ./venv/bin/activate
-                                                pip install --disable-pip-version-check uv
-                                                uvx --index-strategy=unsafe-best-match  --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\" --app-bootstrap-script=\"$BOOTSTRAP_SCRIPT\"
-                                                """
-                                            }
-                                        }
+                                        makeMacPackage()
                                     }
                                     archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
                                     stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
@@ -986,21 +990,12 @@ def call(){
                                     beforeInput true
                                 }
                                 steps{
+                                    unstash 'PYTHON_PACKAGES'
                                     script{
-                                        unstash 'PYTHON_PACKAGES'
-                                        findFiles(glob: 'dist/*.whl').each{ wheel ->
-                                            withEnv(["WHEEL=${wheel.path}"]){
-                                                sh """
-                                                    python3 -m venv venv
-                                                    . ./venv/bin/activate
-                                                    pip install --disable-pip-version-check uv
-                                                    uvx --index-strategy=unsafe-best-match --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\" --app-bootstrap-script=\"$BOOTSTRAP_SCRIPT\"
-                                                    """
-                                                }
-                                        }
-                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
+                                        makeMacPackage()
                                     }
+                                    archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                    stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
                                 }
                                 post{
                                     cleanup{
