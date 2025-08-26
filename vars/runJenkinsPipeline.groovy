@@ -342,6 +342,9 @@ def submitToSonarQube(sonarToken, version){
     }
 }
 def createWindowUVConfig(){
+    if(! fileExists('ci/jenkins/scripts/new-uv-global-config.ps1')){
+        checkout scm
+    }
     return powershell(label: 'Setting up uv.toml config file', script: 'ci/jenkins/scripts/new-uv-global-config.ps1 $env:UV_INDEX_URL $env:UV_EXTRA_INDEX_URL', returnStdout: true).trim()
 }
 
