@@ -1,3 +1,0 @@
-cmake
-Jinja2
-pyinstaller
