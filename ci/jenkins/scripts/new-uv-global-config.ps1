@@ -20,4 +20,4 @@ foreach ($arg in $args) {
     "cache-control = { api = `"max-age=$MAX_AGE_API`", files = `"max-age=$MAX_AGE_FILES, immutable`" }" | Add-Content -Path $GLOBAL_CONFIG_FILE -Encoding UTF8
 }
 
-Write-Host (Get-ChildItem -Path $GLOBAL_CONFIG_FILE).FullName
+Write-Output (Get-ChildItem -Path $GLOBAL_CONFIG_FILE).FullName
