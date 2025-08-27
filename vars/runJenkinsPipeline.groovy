@@ -337,7 +337,10 @@ def submitToSonarQube(sonarToken, version){
            if (sonarqube_result.status != 'OK') {
                unstable "SonarQube quality gate: ${sonarqube_result.status}"
            }
-           writeJSON file: 'reports/sonar-report.json', json: get_sonarqube_unresolved_issues('.sonar/report-task.txt')
+           if(env.BRANCH_IS_PRIMARY){
+               writeJSON file: 'reports/sonar-report.json', json: get_sonarqube_unresolved_issues('.sonar/report-task.txt')
+               recordIssues(tools: [sonarQube(pattern: 'reports/sonar-report.json')])
+           }
         }
     }
 }
@@ -656,7 +659,6 @@ def call(){
                                 post {
                                     always{
                                         milestone ordinal: 1, label: 'sonarcloud'
-                                        recordIssues(tools: [sonarQube(pattern: 'reports/sonar-report.json')])
                                     }
                                 }
                             }
