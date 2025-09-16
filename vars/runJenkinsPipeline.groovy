@@ -9,15 +9,7 @@ def createChocolateyConfigFile(configJsonFile, installerPackage, url){
 
 def makeMacPackage(){
     findFiles(glob: 'dist/*.whl').each{ wheel ->
-        withEnv(["WHEEL=${wheel.path}"]){
-            sh """
-                python3 -m venv venv
-                . ./venv/bin/activate
-                pip install --disable-pip-version-check uv
-                uv export --no-hashes --format requirements-txt --extra gui --no-dev --no-emit-project > requirements-gui.txt
-                uvx --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $WHEEL -r requirements-gui.txt --app-name=\"$APP_NAME\" --app-bootstrap-script=\"$BOOTSTRAP_SCRIPT\"
-                """
-        }
+        sh "sh script/create_mac_standalone.sh ${wheel.path}"
     }
 }
 
@@ -983,13 +975,13 @@ def call(){
                         parallel{
                             stage('Mac Application Bundle x86_64'){
                                 agent{
-                                    label 'mac && python3.11 && x86_64'
+                                    label 'mac && python3 && x86_64'
                                 }
                                 when{
                                     allOf{
                                         equals expected: true, actual: params['INCLUDE_MACOS-X86_64']
                                         equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-                                        expression {return nodesByLabel('mac && python3.11 && x86_64').size() > 0}
+                                        expression {return nodesByLabel('mac && python3 && x86_64').size() > 0}
                                     }
                                     beforeInput true
                                 }
@@ -1016,13 +1008,13 @@ def call(){
                             }
                             stage('Mac Application Bundle M1'){
                                 agent{
-                                    label 'mac && python3.11 && arm64'
+                                    label 'mac && python3 && arm64'
                                 }
                                 when{
                                     allOf{
                                         equals expected: true, actual: params['INCLUDE_MACOS-ARM64']
                                         equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-                                        expression {return nodesByLabel('mac && python3.11 && arm64').size() > 0}
+                                        expression {return nodesByLabel('mac && python3 && arm64').size() > 0}
                                     }
                                     beforeInput true
                                 }
@@ -1078,25 +1070,32 @@ def call(){
                                         steps{
                                             unstash 'PYTHON_PACKAGES'
                                             script{
-                                                powershell(
-                                                    label:'Get WiX Toolset',
-                                                    script: '''Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force
-                                                               Register-PackageSource -Name MyNuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
-                                                               Install-Package -Name wix -Source MyNuGet -Force -ExcludeVersion -RequiredVersion 3.11.2 -Destination .
-                                                           '''
-                                               )
+//                                                 powershell(
+//                                                     label:'Get WiX Toolset',
+//                                                     script: '''Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force
+//                                                                Register-PackageSource -Name MyNuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
+//                                                                Install-Package -Name wix -Source MyNuGet -Force -ExcludeVersion -RequiredVersion 3.11.2 -Destination .
+//                                                            '''
+//                                                )
                                                 findFiles(glob: 'dist/*.whl').each{
-                                                    withEnv(["WHEEL=${it.path}"]){
-                                                        powershell(
-                                                            label: 'Create standalone windows version',
-                                                            script: '''python -m pip install --disable-pip-version-check uv
-                                                                       $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
-                                                                       Write-Host "APP_NAME = $Env:APP_NAME"
-                                                                       uv export --no-hashes --format requirements-txt --extra gui --no-dev --no-emit-project > requirements-gui.txt
-                                                                       uvx --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME" --app-bootstrap-script="$Env:BOOTSTRAP_SCRIPT"
-                                                                    '''
-                                                        )
-                                                    }
+                                                    powershell(
+                                                        label: 'Create standalone windows version',
+                                                        script: """python -m venv venv
+                                                                   venv\\Scripts\\python -m pip install --disable-pip-version-check uv
+                                                                   powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -ExtraIndexUrl \$env:PIP_EXTRA_INDEX_URL
+                                                               """
+                                                    )
+//                                                     withEnv(["WHEEL=${it.path}"]){
+//                                                         powershell(
+//                                                             label: 'Create standalone windows version',
+//                                                             script: '''python -m pip install --disable-pip-version-check uv
+//                                                                        $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
+//                                                                        Write-Host "APP_NAME = $Env:APP_NAME"
+//                                                                        uv export --no-hashes --format requirements-txt --extra gui --no-dev --no-emit-project > requirements-gui.txt
+//                                                                        uvx --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME" --app-bootstrap-script="$Env:BOOTSTRAP_SCRIPT"
+//                                                                     '''
+//                                                         )
+//                                                     }
                                                 }
                                             }
                                             archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
