@@ -396,7 +396,7 @@ def call(){
                     UV_CACHE_DIR = '/tmp/uvcache'
                     UV_PYTHON = '3.11'
                     UV_CONFIG_FILE=createUnixUvConfig()
-                    UV_PROJECT_ENVIRONMENT='./venv'
+//                     UV_PROJECT_ENVIRONMENT='./venv'
                 }
                 steps {
                     catchError(buildResult: 'UNSTABLE', message: 'Sphinx has warnings', stageResult: 'UNSTABLE') {
@@ -404,10 +404,8 @@ def call(){
                            script:'''python3 -m venv venv
                               trap "rm -rf venv" EXIT
                               ./venv/bin/pip install --disable-pip-version-check uv
-                              ./venv/bin/uv sync --locked --group docs
-                              . ./venv/bin/activate
-                              sphinx-build -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
-                              sphinx-build -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
+                              ./venv/bin/uv run --isolated --group docs --no-dev sphinx-build  --verbose --conf-dir=docs/ -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
+                              ./venv/bin/uv run --isolated --group docs --no-dev sphinx-build  --verbose --conf-dir=docs/ -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
                               ''')
                         script{
                             def props = readTOML( file: 'pyproject.toml')['project']
@@ -433,6 +431,8 @@ def call(){
                             notFailBuild: true,
                             deleteDirs: true,
                             patterns: [
+                                [pattern: '.venv/', type: 'INCLUDE'],
+                                [pattern: 'venv/', type: 'INCLUDE'],
                                 [pattern: 'dist/', type: 'INCLUDE'],
                                 [pattern: 'build/', type: 'INCLUDE'],
                             ]
