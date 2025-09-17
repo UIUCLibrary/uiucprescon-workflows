@@ -404,8 +404,8 @@ def call(){
                            script:'''python3 -m venv venv
                               trap "rm -rf venv" EXIT
                               ./venv/bin/pip install --disable-pip-version-check uv
-                              ./venv/bin/uv run --isolated --group docs sphinx-build  --verbose --conf-dir=docs/ -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
-                              ./venv/bin/uv run --isolated --group docs sphinx-build  --verbose --conf-dir=docs/ -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
+                              ./venv/bin/uv run --isolated --group docs --no-dev sphinx-build  --verbose --conf-dir=docs/ -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
+                              ./venv/bin/uv run --isolated --group docs --no-dev sphinx-build  --verbose --conf-dir=docs/ -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
                               ''')
                         script{
                             def props = readTOML( file: 'pyproject.toml')['project']
