@@ -1135,7 +1135,7 @@ def call(){
                                             stage('Verify Installed'){
                                                 steps{
                                                     checkout scm
-                                                    powershell('./contrib/ensure_installed_property.ps1')
+                                                    powershell('./ci/jenkins/scripts/ensure_application_installed_property.ps1')
                                                 }
                                             }
                                             stage('Uninstall'){
@@ -1151,7 +1151,7 @@ def call(){
                                                                    Get-WmiObject -Class Win32_Product
                                                                 '''
                                                    )
-                                                   powershell('./contrib/ensure_uninstalled.ps1 --StartMenuShortCutRemoved')
+                                                   powershell('./ci/jenkins/scripts/ensure_application_uninstalled.ps1 --StartMenuShortCutRemoved')
                                                 }
                                             }
                                         }
