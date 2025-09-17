@@ -396,15 +396,16 @@ def call(){
                     UV_CACHE_DIR = '/tmp/uvcache'
                     UV_PYTHON = '3.11'
                     UV_CONFIG_FILE=createUnixUvConfig()
+                    UV_PROJECT_ENVIRONMENT='./venv'
                 }
                 steps {
                     catchError(buildResult: 'UNSTABLE', message: 'Sphinx has warnings', stageResult: 'UNSTABLE') {
                         sh(label: 'Build docs in html and Latex formats',
                            script:'''python3 -m venv venv
                               trap "rm -rf venv" EXIT
+                              ./venv/bin/pip install --disable-pip-version-check uv
+                              ./venv/bin/uv sync --locked --group docs
                               . ./venv/bin/activate
-                              pip install --disable-pip-version-check uv
-                              uv sync --active --locked --group docs
                               sphinx-build -W --keep-going -b html -d build/docs/.doctrees -w logs/build_sphinx_html.log docs build/docs/html
                               sphinx-build -W --keep-going -b latex -d build/docs/.doctrees docs build/docs/latex
                               ''')
@@ -889,6 +890,7 @@ def call(){
                                         environment{
                                             UV_TOOL_DIR='/tmp/uvtools'
                                             UV_CACHE_DIR='/tmp/uvcache'
+                                            UV_PROJECT_ENVIRONMENT='./venv'
                                         }
                                         steps{
                                             catchError(buildResult: 'UNSTABLE', message: 'twine check found issues', stageResult: 'UNSTABLE') {
@@ -897,9 +899,8 @@ def call(){
                                                     label: 'Checking with twine check',
                                                     script: '''python3 -m venv venv && venv/bin/pip install --disable-pip-version-check uv
                                                                trap "rm -rf venv" EXIT
-                                                               . ./venv/bin/activate
-                                                               uv sync --active --locked --group ci
-                                                               twine check --strict  dist/*
+                                                               ./venv/bin/uv sync --frozen --only-group deploy
+                                                               ./venv/bin/twine check --strict  dist/*
                                                             '''
                                                 )
                                             }
@@ -968,10 +969,6 @@ def call(){
                         }
                     }
                     stage('End-user packages'){
-                        environment {
-                            APP_NAME="Speedwagon (UIUC Prescon Edition)"
-                            BOOTSTRAP_SCRIPT="./contrib/speedwagon_bootstrap.py"
-                        }
                         parallel{
                             stage('Mac Application Bundle x86_64'){
                                 agent{
@@ -1070,13 +1067,6 @@ def call(){
                                         steps{
                                             unstash 'PYTHON_PACKAGES'
                                             script{
-//                                                 powershell(
-//                                                     label:'Get WiX Toolset',
-//                                                     script: '''Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force
-//                                                                Register-PackageSource -Name MyNuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
-//                                                                Install-Package -Name wix -Source MyNuGet -Force -ExcludeVersion -RequiredVersion 3.11.2 -Destination .
-//                                                            '''
-//                                                )
                                                 findFiles(glob: 'dist/*.whl').each{
                                                     powershell(
                                                         label: 'Create standalone windows version',
@@ -1085,17 +1075,6 @@ def call(){
                                                                    powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -ExtraIndexUrl \$env:PIP_EXTRA_INDEX_URL
                                                                """
                                                     )
-//                                                     withEnv(["WHEEL=${it.path}"]){
-//                                                         powershell(
-//                                                             label: 'Create standalone windows version',
-//                                                             script: '''python -m pip install --disable-pip-version-check uv
-//                                                                        $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
-//                                                                        Write-Host "APP_NAME = $Env:APP_NAME"
-//                                                                        uv export --no-hashes --format requirements-txt --extra gui --no-dev --no-emit-project > requirements-gui.txt
-//                                                                        uvx --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME" --app-bootstrap-script="$Env:BOOTSTRAP_SCRIPT"
-//                                                                     '''
-//                                                         )
-//                                                     }
                                                 }
                                             }
                                             archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
@@ -1157,10 +1136,13 @@ def call(){
                                             stage('Verify Installed'){
                                                 steps{
                                                     checkout scm
-                                                    powershell('./contrib/ensure_installed_property.ps1')
+                                                    powershell('./ci/jenkins/scripts/ensure_application_installed_property.ps1')
                                                 }
                                             }
                                             stage('Uninstall'){
+                                                environment {
+                                                    APP_NAME="Speedwagon (UIUC Prescon Edition)"
+                                                }
                                                 steps{
                                                     powershell(
                                                         label: 'Uninstall',
@@ -1170,7 +1152,7 @@ def call(){
                                                                    Get-WmiObject -Class Win32_Product
                                                                 '''
                                                    )
-                                                   powershell('./contrib/ensure_uninstalled.ps1 --StartMenuShortCutRemoved')
+                                                   powershell('./ci/jenkins/scripts/ensure_application_uninstalled.ps1 --StartMenuShortCutRemoved')
                                                 }
                                             }
                                         }
@@ -1210,6 +1192,7 @@ def call(){
                             UV_TOOL_DIR='/tmp/uvtools'
                             UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
                             UV_CACHE_DIR='/tmp/uvcache'
+                            UV_PROJECT_ENVIRONMENT='./venv'
                         }
                         agent {
                             docker{
@@ -1255,10 +1238,9 @@ def call(){
                                         label: 'Uploading to pypi',
                                         script: '''python3 -m venv venv
                                                    trap "rm -rf venv" EXIT
-                                                   . ./venv/bin/activate
-                                                   pip install --disable-pip-version-check uv
-                                                   uv sync --active --locked --group ci
-                                                   twine upload --disable-progress-bar --non-interactive dist/*
+                                                   ./venv/bin/pip install --disable-pip-version-check uv
+                                                   ./venv/bin/uv sync --frozen --only-group deploy
+                                                   ./venv/bin/twine upload --disable-progress-bar --non-interactive dist/*
                                                 '''
                                     )
                                 }

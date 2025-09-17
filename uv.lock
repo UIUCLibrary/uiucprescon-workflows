@@ -1588,6 +1588,9 @@ ci = [
     { name = "twine" },
     { name = "types-requests" },
 ]
+deploy = [
+    { name = "twine" },
+]
 dev = [
     { name = "coverage" },
     { name = "flake8" },
@@ -1651,6 +1654,7 @@ ci = [
     { name = "twine" },
     { name = "types-requests" },
 ]
+deploy = [{ name = "twine" }]
 dev = [
     { name = "coverage" },
     { name = "flake8" },
