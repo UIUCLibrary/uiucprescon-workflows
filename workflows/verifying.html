@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Verifying and Validation &#8212; Speedwagon (UIUC Prescon Edition)  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Zip Packages" href="zippackages.html" />
+    <link rel="prev" title="Hathi Prep" href="hathiprep.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="verifying-and-validation">
+<h1>Verifying and Validation<a class="headerlink" href="#verifying-and-validation" title="Link to this heading">¶</a></h1>
+<section id="workflow-verify-hathitrust-package-completeness">
+<h2 id="workflow-verify-hathitrust-package-completeness">Verify HathiTrust Package Completeness<a class="headerlink" href="#workflow-verify-hathitrust-package-completeness" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line">This workflow takes as its input a directory of HathiTrust packages. It evaluates each subfolder as a HathiTrust package, and verifies its structural completeness (that it contains correctly named marc.xml, meta.yml, and checksum.md5 files); that its page files (image files, OCR, and optional OCR XML) are formatted as required (named according to HathiTrust’s convention, and an equal number of each); and that its XML, YML, and TIFF or JP2 files are well-formed and valid. (This workflow provides console feedback, but doesn’t write new files as output).</div>
+</div>
+<p></p>
+</section>
+<section id="workflow-validate-tiff-image-metadata-for-hathitrust">
+<h2 id="workflow-validate-tiff-image-metadata-for-hathitrust">Validate Tiff Image Metadata for HathiTrust<a class="headerlink" href="#workflow-validate-tiff-image-metadata-for-hathitrust" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line">Validate the metadata located within a tiff file. Validates the technical metadata to include x and why resolution, bit depth and color space for images located inside a directory.  The tool also verifies values exist for address, city, state, zip code, country, phone number insuring the provenance of the file. </div>
+<div class="line">Input is path that contains subdirectory which containing a series of tiff files.</div>
+</div>
+<p><p>Uses <a class="reference internal" href="../glossary.html#term-Exiv2"><span class="xref std std-term">Exiv2</span></a> to read the image metadata.</p>
+</p>
+</section>
+<section id="workflow-validate-metadata">
+<h2 id="workflow-validate-metadata">Validate Metadata<a class="headerlink" href="#workflow-validate-metadata" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line">Validates the technical metadata for JP2000 files to include x and why resolution, bit depth and color space for images located inside a directory.  The tool also verifies values exist for address, city, state, zip code, country, phone number insuring the provenance of the file.</div>
+<div class="line">Input is path that contains subdirectory which containing a series of jp2 files.</div>
+</div>
+<p><p>Uses <a class="reference internal" href="../glossary.html#term-Exiv2"><span class="xref std std-term">Exiv2</span></a> to read the image metadata.</p>
+</p>
+</section>
+<section id="workflow-verify-checksum-batch-multiple">
+<h2 id="workflow-verify-checksum-batch-multiple">Verify Checksum Batch [Multiple]<a class="headerlink" href="#workflow-verify-checksum-batch-multiple" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line">Verify checksum values in checksum batch file, report errors. Verifies every entry in the checksum.md5 files matches expected hash value for the actual file.  Tool reports discrepancies in console of Speedwagon.</div>
+<div class="line">Input is path that contains subdirectory which a text file containing a list of multiple files and their md5 values. The listed files are expected to be siblings to the checksum file.</div>
+</div>
+<p></p>
+</section>
+<section id="workflow-verify-checksum-batch-single">
+<h2 id="workflow-verify-checksum-batch-single">Verify Checksum Batch [Single]<a class="headerlink" href="#workflow-verify-checksum-batch-single" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line">Verify checksum values in checksum batch file, report errors. Verifies every entry in the checksum.md5 files matches expected hash value for the actual file.  Tool reports discrepancies in console of Speedwagon.</div>
+<div class="line">Input is a text file containing a list of multiple files and their md5 values. The listed files are expected to be siblings to the checksum file.</div>
+</div>
+<p></p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Speedwagon (UIUC Prescon Edition)</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../use_cases.html">Use Cases</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../workflows.html">Workflows</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="converting_packages.html">Converting Files and Packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="generate.html">Generate Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hathiprep.html">Hathi Prep</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Verifying and Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="zippackages.html">Zip Packages</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="../workflows.html">Workflows</a><ul>
+      <li>Previous: <a href="hathiprep.html" title="previous chapter">Hathi Prep</a></li>
+      <li>Next: <a href="zippackages.html" title="next chapter">Zip Packages</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, a.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/workflows/verifying.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Generate Files &#8212; Speedwagon (UIUC Prescon Edition)  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Hathi Prep" href="hathiprep.html" />
+    <link rel="prev" title="Converting Files and Packages" href="converting_packages.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="generate-files">
+<h1>Generate Files<a class="headerlink" href="#generate-files" title="Link to this heading">¶</a></h1>
+<section id="workflow-generate-marc-xml-files">
+<h2 id="workflow-generate-marc-xml-files">Generate MARC.XML Files<a class="headerlink" href="#workflow-generate-marc-xml-files" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line">For input, this tool takes a path to a directory of files, each of which is a digitized volume, and is named for that volume’s bibid. The program then retrieves MARC.XML files for these bibId’s and writes them into the folder for each corresponding bibid or mmsid. It uses the GetMARC service to retrieve these MARC.XML files from the Library.</div>
+</div>
+<p></p>
+</section>
+<section id="workflow-generate-ocr-files">
+<h2 id="workflow-generate-ocr-files">Generate OCR Files<a class="headerlink" href="#workflow-generate-ocr-files" title="Link to this heading">¶</a></h2>
+<p><p>Uses <a class="reference internal" href="../glossary.html#term-Google-Tesseract"><span class="xref std std-term">Google Tesseract</span></a> to create <a class="reference internal" href="../glossary.html#term-Optical-Character-Recognition"><span class="xref std std-term">OCR</span></a> text files for images.</p>
+<dl class="simple">
+<dt>Settings:</dt><dd><p>Path: Path containing tiff or jp2 files.
+Image File Type: The type of Image file to use.</p>
+</dd>
+<dt>Adding Additional Languages:</dt><dd><p>To modify the available languages, place Tesseract traineddata files for current version in to the data directory</p>
+</dd>
+<dt>Note:</dt><dd><p>It’s important to use the correct version of the traineddata files. Using incorrect versions won’t crash the program but they may produce unexpected results.</p>
+</dd>
+</dl>
+<p>For more information about these files, go to <a class="reference external" href="https://github.com/tesseract-ocr/tesseract/wiki/Data-Files">https://github.com/tesseract-ocr/tesseract/wiki/Data-Files</a></p>
+</p>
+</section>
+<section id="workflow-make-checksum-batch-single">
+<h2 id="workflow-make-checksum-batch-single">Make Checksum Batch [Single]<a class="headerlink" href="#workflow-make-checksum-batch-single" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line">The checksum is a signature of a file.  If any data is changed, the checksum will provide a different signature.  The checksum.md5 contains a record of each file in a single item along with respective checksum values </div>
+<div class="line">Creates a single checksum.md5 for every file inside a given folder</div>
+<div class="line">Input: Path to a root folder</div>
+</div>
+<p></p>
+</section>
+<section id="workflow-make-checksum-batch-multiple">
+<h2 id="workflow-make-checksum-batch-multiple">Make Checksum Batch [Multiple]<a class="headerlink" href="#workflow-make-checksum-batch-multiple" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line">The checksum is a signature of a file.  If any data is changed, the checksum will provide a different signature.  The checksum.md5 contains a record of the files for a given package.</div>
+<div class="line">The tool creates a checksum.md5 for every subdirectory found inside a given path.</div>
+<div class="line">Input: Path to a root directory that contains subdirectories to generate checksum.md5 files</div>
+</div>
+<p></p>
+</section>
+<section id="workflow-make-jp2">
+<h2 id="workflow-make-jp2">Make JP2<a class="headerlink" href="#workflow-make-jp2" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line">Makes Jpeg 2000 files from TIFF. Tool converts tiff files in access folder in each directory to an JP2000 files with Kakadu. </div>
+<div class="line"><br /></div>
+<div class="line">For example, the following directory would have “c:\package_dirs” for Input:</div>
+<div class="line"><br /></div>
+<div class="line">| c:\package_dirs</div>
+<div class="line">|.└── 99423682912205899/</div>
+<div class="line">|….└── access/</div>
+<div class="line">|…….├── 99423682912205899-00000001.tif</div>
+<div class="line">|…….├── 99423682912205899-00000002.tif</div>
+<div class="line"><br /></div>
+<div class="line">    and etc…</div>
+<div class="line"><br /></div>
+</div>
+<p></p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Speedwagon (UIUC Prescon Edition)</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../use_cases.html">Use Cases</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../workflows.html">Workflows</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="converting_packages.html">Converting Files and Packages</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Generate Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hathiprep.html">Hathi Prep</a></li>
+<li class="toctree-l2"><a class="reference internal" href="verifying.html">Verifying and Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="zippackages.html">Zip Packages</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="../workflows.html">Workflows</a><ul>
+      <li>Previous: <a href="converting_packages.html" title="previous chapter">Converting Files and Packages</a></li>
+      <li>Next: <a href="hathiprep.html" title="next chapter">Hathi Prep</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, a.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/workflows/generate.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
