@@ -16,16 +16,24 @@ Notes:
 
 """
 
-from docutils.parsers.rst import Directive, directives
+from docutils.parsers.rst import directives
 from docutils import nodes
+from speedwagon_uiucprescon import active_workflows, deprecated_workflows
 import speedwagon
+import sphinx.util.logging
 from sphinx.util import logging
 from sphinx import addnodes
+from sphinx.util.docutils import SphinxDirective
 
-all_workflows = speedwagon.available_workflows()
+logger = sphinx.util.logging.getLogger(__name__)
+
+all_workflows = {
+    **active_workflows.registered_workflows(),
+    **deprecated_workflows.registered_workflows(),
+}
 
 
-class AutoWorkflowDirective(Directive):
+class AutoWorkflowDirective(SphinxDirective):
     required_arguments = 1
     optional_arguments = 0
     has_content = True
@@ -41,8 +49,8 @@ class AutoWorkflowDirective(Directive):
         if not workflow:
 
             valid_workflows = [w for w in all_workflows.keys()]
-            self.warning(f"Unable to add {self.arguments[0]}, "
-                         f"Only known ones are {','.join(valid_workflows)}")
+            logger.warning(f"Unable to add {self.arguments[0]}, "
+                         f"Only known ones are {valid_workflows}")
             return []
         indexnode = addnodes.index(entries=[])
 
@@ -77,7 +85,7 @@ class AutoWorkflowDirective(Directive):
         return [section]
 
 
-class WorkflowMetadataListDirective(Directive):
+class WorkflowMetadataListDirective(SphinxDirective):
 
     entries = dict()
     has_content = False
@@ -139,9 +147,8 @@ class WorkflowMetadataListDirective(Directive):
 
 
 def setup(app):
-
     app.add_directive("workflowlist", WorkflowMetadataListDirective)
     app.add_directive("autoworkflow", AutoWorkflowDirective)
     return {
-        'version': '0.1',
+        'version': '0.2',
     }
