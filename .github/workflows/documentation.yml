@@ -22,11 +22,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install uv
-          uv sync --group docs
       - name: Sphinx build
         run: |
-          . ./.venv/bin/activate
-          sphinx-build docs _build
+          uv run --no-dev --group docs sphinx-build docs _build
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true'
