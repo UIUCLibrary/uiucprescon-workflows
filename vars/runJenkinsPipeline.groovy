@@ -889,6 +889,7 @@ def call(){
                                         environment{
                                             UV_TOOL_DIR='/tmp/uvtools'
                                             UV_CACHE_DIR='/tmp/uvcache'
+                                            UV_PROJECT_ENVIRONMENT='./venv'
                                         }
                                         steps{
                                             catchError(buildResult: 'UNSTABLE', message: 'twine check found issues', stageResult: 'UNSTABLE') {
@@ -897,9 +898,8 @@ def call(){
                                                     label: 'Checking with twine check',
                                                     script: '''python3 -m venv venv && venv/bin/pip install --disable-pip-version-check uv
                                                                trap "rm -rf venv" EXIT
-                                                               . ./venv/bin/activate
-                                                               uv sync --active --locked --group ci
-                                                               twine check --strict  dist/*
+                                                               ./venv/bin/uv sync --frozen --only-group deploy
+                                                               ./venv/bin/twine check --strict  dist/*
                                                             '''
                                                 )
                                             }
@@ -1191,6 +1191,7 @@ def call(){
                             UV_TOOL_DIR='/tmp/uvtools'
                             UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
                             UV_CACHE_DIR='/tmp/uvcache'
+                            UV_PROJECT_ENVIRONMENT='./venv'
                         }
                         agent {
                             docker{
@@ -1236,10 +1237,9 @@ def call(){
                                         label: 'Uploading to pypi',
                                         script: '''python3 -m venv venv
                                                    trap "rm -rf venv" EXIT
-                                                   . ./venv/bin/activate
-                                                   pip install --disable-pip-version-check uv
-                                                   uv sync --active --locked --group ci
-                                                   twine upload --disable-progress-bar --non-interactive dist/*
+                                                   ./venv/bin/pip install --disable-pip-version-check uv
+                                                   ./venv/bin/uv sync --frozen --only-group deploy
+                                                   ./venv/bin/twine upload --disable-progress-bar --non-interactive dist/*
                                                 '''
                                     )
                                 }
