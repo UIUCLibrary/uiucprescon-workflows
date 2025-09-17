@@ -968,10 +968,6 @@ def call(){
                         }
                     }
                     stage('End-user packages'){
-                        environment {
-                            APP_NAME="Speedwagon (UIUC Prescon Edition)"
-                            BOOTSTRAP_SCRIPT="./contrib/speedwagon_bootstrap.py"
-                        }
                         parallel{
                             stage('Mac Application Bundle x86_64'){
                                 agent{
@@ -1070,13 +1066,6 @@ def call(){
                                         steps{
                                             unstash 'PYTHON_PACKAGES'
                                             script{
-//                                                 powershell(
-//                                                     label:'Get WiX Toolset',
-//                                                     script: '''Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force
-//                                                                Register-PackageSource -Name MyNuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
-//                                                                Install-Package -Name wix -Source MyNuGet -Force -ExcludeVersion -RequiredVersion 3.11.2 -Destination .
-//                                                            '''
-//                                                )
                                                 findFiles(glob: 'dist/*.whl').each{
                                                     powershell(
                                                         label: 'Create standalone windows version',
@@ -1085,17 +1074,6 @@ def call(){
                                                                    powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -ExtraIndexUrl \$env:PIP_EXTRA_INDEX_URL
                                                                """
                                                     )
-//                                                     withEnv(["WHEEL=${it.path}"]){
-//                                                         powershell(
-//                                                             label: 'Create standalone windows version',
-//                                                             script: '''python -m pip install --disable-pip-version-check uv
-//                                                                        $env:Path += ";$(Resolve-Path('.\\WiX\\tools\\'))"
-//                                                                        Write-Host "APP_NAME = $Env:APP_NAME"
-//                                                                        uv export --no-hashes --format requirements-txt --extra gui --no-dev --no-emit-project > requirements-gui.txt
-//                                                                        uvx --with-requirements requirements-gui.txt --python 3.11 --from package_speedwagon@https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.0.tar.gz package_speedwagon $Env:WHEEL -r requirements-gui.txt --app-name="$Env:APP_NAME" --app-bootstrap-script="$Env:BOOTSTRAP_SCRIPT"
-//                                                                     '''
-//                                                         )
-//                                                     }
                                                 }
                                             }
                                             archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
@@ -1161,6 +1139,9 @@ def call(){
                                                 }
                                             }
                                             stage('Uninstall'){
+                                                environment {
+                                                    APP_NAME="Speedwagon (UIUC Prescon Edition)"
+                                                }
                                                 steps{
                                                     powershell(
                                                         label: 'Uninstall',
