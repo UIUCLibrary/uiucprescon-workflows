@@ -28,7 +28,7 @@ authors = [
     {name="University Library at The University of Illinois at Urbana Champaign: Preservation Services", email="prescons@library.illinois.edu"}
 ]
 readme = { file= "README.md", content-type="text/markdown" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 [project.optional-dependencies]
 gui = ["speedwagon[Qt]"]
