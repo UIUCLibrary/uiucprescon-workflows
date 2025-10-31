@@ -700,6 +700,7 @@ def call(){
                                                             retry(retryTimes){
                                                                 image = docker.build(UUID.randomUUID().toString(), '-f ci/docker/linux/jenkins/Dockerfile --build-arg UV_INDEX_URL --build-arg UV_EXTRA_INDEX_URL .')
                                                             }
+                                                            try{
                                                                 try{
                                                                     withEnv(["UV_CONFIG_FILE=${createUnixUvConfig()}"]){
                                                                         image.inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp'){
@@ -727,7 +728,12 @@ def call(){
                                                                         }
                                                                     }
                                                                 } finally {
-                                                                    sh "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                    if(image){
+                                                                        sh "docker rmi --no-prune ${image.id}"
+                                                                    }
+                                                                }
+                                                            } finally {
+                                                                sh "${tool(name: 'Default', type: 'git')} clean -dfx"
                                                             }
                                                         }
                                                     }
