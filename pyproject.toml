@@ -41,19 +41,22 @@ uiucprescon_deprecated_workflows = 'speedwagon_uiucprescon.deprecated_workflows'
 test = ["pytest>7", "pytest-mock", "coverage"]
 test-gui = ["pytest-qt", {include-group = "test"}]
 docs = ["sphinx"]
+tox = ['tox']
 dev = [
     "flake8",
     "mypy",
     "pydocstyle",
     "pylint",
-    "tox",
     "types-requests",
     {include-group = "docs"},
     {include-group = "test"},
+    {include-group = "tox"},
 ]
+audit-dependencies = ['uv-secure']
 deploy = ["twine"]
 ci = [
     "pysonar",
+    {include-group = "audit-dependencies"},
     {include-group = "deploy"},
     {include-group = "dev"}
 ]

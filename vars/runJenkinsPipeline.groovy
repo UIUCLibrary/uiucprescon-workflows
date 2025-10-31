@@ -67,7 +67,7 @@ def testPackage(entry){
                         script: """python3 -m venv venv
                                    ./venv/bin/pip install --disable-pip-version-check uv
                                    ./venv/bin/uv python install cpython-${entry.PYTHON_VERSION}
-                                   ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                   ./venv/bin/uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
                                 """
                     )
                 }
@@ -85,7 +85,7 @@ def testPackage(entry){
                         script: """python -m venv venv
                                    .\\venv\\Scripts\\pip install --disable-pip-version-check uv
                                    .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                                   .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                   .\\venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
                                 """
                     )
                 }
@@ -98,7 +98,7 @@ def testPackage(entry){
                     label: 'Testing with tox',
                     script: """python3 -m venv venv
                                ./venv/bin/pip install --disable-pip-version-check uv
-                               ./venv/bin/uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                               ./venv/bin/uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
                             """
                 )
             }
@@ -109,7 +109,7 @@ def testPackage(entry){
                     script: """python -m venv venv
                                .\\venv\\Scripts\\pip install --disable-pip-version-check uv
                                .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                               .\\venv\\Scripts\\uvx --with tox-uv tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                               .\\venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
                             """
                 )
             }
@@ -222,7 +222,7 @@ def getToxEnvs(){
                 sh(script: 'python3 -m venv venv && venv/bin/pip install --disable-pip-version-check uv')
                 return sh(
                     label: 'Get tox environments',
-                    script: './venv/bin/uvx --quiet --with tox-uv tox list -d --no-desc',
+                    script: './venv/bin/uv run --only-group=tox --with=tox-uv --frozen --quiet tox list -d --no-desc',
                     returnStdout: true,
                 ).trim().split('\n')
             }
@@ -231,7 +231,7 @@ def getToxEnvs(){
                 bat(script: 'python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv')
                 return bat(
                     label: 'Get tox environments',
-                    script: '@.\\venv\\Scripts\\uvx --quiet --with tox-uv tox list -d --no-desc',
+                    script: '@.\\venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen --quiet tox list -d --no-desc',
                     returnStdout: true,
                 ).trim().split('\r\n')
             }
@@ -517,7 +517,7 @@ def call(){
                                             stage('Audit Requirement Freeze File'){
                                                 steps{
                                                     catchError(buildResult: 'SUCCESS', message: 'uv-secure found issues', stageResult: 'UNSTABLE') {
-                                                        sh './venv/bin/uvx uv-secure --disable-cache uv.lock'
+                                                        sh './venv/bin/uv run --only-group=audit-dependencies --frozen --isolated uv-secure --disable-cache uv.lock'
                                                     }
                                                 }
                                             }
@@ -711,7 +711,7 @@ def call(){
                                                                                                    trap "rm -rf ./venv" EXIT
                                                                                                    ./venv/bin/uv python install cpython-${version}
                                                                                                    trap "rm -rf ./venv && rm -rf .tox" EXIT
-                                                                                                   ./venv/bin/uvx -p ${version} --with tox-uv tox run --runner uv-venv-lock-runner -e ${toxEnv}
+                                                                                                   ./venv/bin/uv run --only-group=tox --with=tox-uv --frozen tox run --runner uv-venv-lock-runner -e ${toxEnv}
                                                                                                 """
                                                                                         )
                                                                                 } catch (e){
@@ -787,7 +787,7 @@ def call(){
                                                                                         bat(label: 'Running Tox',
                                                                                             script: '''python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv
                                                                                                        venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
-                                                                                                       venv\\Scripts\\uvx --python %PYTHON_VERSION% --with tox-uv tox run --runner uv-venv-lock-runner -vv
+                                                                                                       venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen tox run --runner uv-venv-lock-runner -vv
                                                                                                        rmdir /s/q venv
                                                                                                     '''
                                                                                         )
