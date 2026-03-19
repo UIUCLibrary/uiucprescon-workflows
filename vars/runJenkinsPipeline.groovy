@@ -48,17 +48,18 @@ def testPackage(entry){
         docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
             .inside(
                 isUnix() ?
-                '--mount source=python-tmp-uiucpreson_workflows,target=/tmp':
-                '--mount type=volume,source=uv_python_install_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
-                 --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
-                 --mount type=volume,source=msvc-runtime,target=c:\\msvc_runtime \
-                 --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
+                    '--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.local/share:exec --tmpfs /.local/bin:exec'
+                :
+                    '--mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                     --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                     --mount type=volume,source=msvc-runtime,target=c:\\msvc_runtime \
+                     --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
             ){
              if(isUnix()){
                 withEnv([
                     'PIP_CACHE_DIR=/tmp/pipcache',
                     'UV_TOOL_DIR=/tmp/uvtools',
-                    'UV_PYTHON_INSTALL_DIR=/tmp/uvpython',
+                    'UV_PYTHON_CACHE_DIR=/tmp/uvpython',
                     'UV_CACHE_DIR=/tmp/uvcache',
                     "UV_CONFIG_FILE=${createUnixUvConfig()}",
                 ]){
@@ -75,7 +76,7 @@ def testPackage(entry){
                 withEnv([
                     'PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache',
                     'UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools',
-                    'UV_PYTHON_INSTALL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython',
+                    'UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython',
                     'UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache',
                     "UV_CONFIG_FILE=${createWindowUVConfig()}",
                 ]){
@@ -265,7 +266,7 @@ def getWindowsToxEnvs(){
         try{
             docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
                 .inside("\
-                    --mount type=volume,source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} \
+                    --mount type=volume,source=uv_python_cache_dir,target=${env.UV_PYTHON_CACHE_DIR} \
                     --mount type=volume,source=pipcache,target=${env.PIP_CACHE_DIR} \
                     --mount type=volume,source=uv_cache_dir,target=${env.UV_CACHE_DIR}\
                     "
@@ -381,7 +382,7 @@ def call(){
                     docker{
                         image 'sphinxdoc/sphinx-latexpdf'
                         label 'linux && docker && x86'
-                        args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
+                        args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.local/share:exec'
                     }
                 }
                 options {
@@ -390,7 +391,7 @@ def call(){
                 environment{
                     PIP_CACHE_DIR = '/tmp/pipcache'
                     UV_TOOL_DIR = '/tmp/uvtools'
-                    UV_PYTHON_INSTALL_DIR = '/tmp/uvpython'
+                    UV_PYTHON_CACHE_DIR = '/tmp/uvpython'
                     UV_CACHE_DIR = '/tmp/uvcache'
                     UV_PYTHON = '3.11'
                     UV_CONFIG_FILE=createUnixUvConfig()
@@ -449,13 +450,13 @@ def call(){
                             docker{
                                 image 'python'
                                 label 'docker && linux && x86_64' // needed for pysonar-scanner which is x86_64 only as of 0.2.0.520
-                                args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
+                                args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.config:exec --tmpfs /.local/share:exec --tmpfs /.local/bin:exec'
                             }
                         }
                         environment{
                             PIP_CACHE_DIR='/tmp/pipcache'
                             UV_TOOL_DIR='/tmp/uvtools'
-                            UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
+                            UV_PYTHON_CACHE_DIR='/tmp/uvpython'
                             UV_CACHE_DIR='/tmp/uvcache'
                             UV_PYTHON='3.11'
                             QT_QPA_PLATFORM='offscreen'
@@ -664,7 +665,7 @@ def call(){
                                 environment{
                                     PIP_CACHE_DIR='/tmp/pipcache'
                                     UV_TOOL_DIR='/tmp/uvtools'
-                                    UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
+                                    UV_PYTHON_CACHE_DIR='/tmp/uvpython'
                                     UV_CACHE_DIR='/tmp/uvcache'
                                     QT_QPA_PLATFORM='offscreen'
                                 }
@@ -686,7 +687,7 @@ def call(){
                                                             try{
                                                                 try{
                                                                     withEnv(["UV_CONFIG_FILE=${createUnixUvConfig()}"]){
-                                                                        image.inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp'){
+                                                                        image.inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.local/share:exec --tmpfs /.local/bin:exec'){
                                                                             retry(retryTimes){
                                                                                 try{
                                                                                     sh( label: 'Running Tox',
@@ -733,7 +734,7 @@ def call(){
                                 environment{
                                     PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\pipcache'
                                     UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvtools'
-                                    UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvpython'
+                                    UV_PYTHON_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvpython'
                                     UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
                                     VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime'
                                 }
@@ -757,7 +758,7 @@ def call(){
                                                                     try{
                                                                         docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
                                                                             .inside("\
-                                                                                --mount type=volume,source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} \
+                                                                                --mount type=volume,source=uv_python_cache_dir,target=${env.UV_PYTHON_CACHE_DIR} \
                                                                                 --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
                                                                                 --mount type=volume,source=pipcache,target=${env.PIP_CACHE_DIR} \
                                                                                 --mount type=volume,source=uv_cache_dir,target=${env.UV_CACHE_DIR}\
@@ -1031,7 +1032,7 @@ def call(){
                                 environment{
                                   PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\pipcache'
                                   UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvtools'
-                                  UV_PYTHON_INSTALL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvpython'
+                                  UV_PYTHON_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvpython'
                                   UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
                                   VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime'
                                 }
@@ -1042,7 +1043,7 @@ def call(){
                                                image 'python'
                                                label 'windows && x86_64 && docker'
                                                args " \
-                                                    --mount type=volume,source=uv_python_install_dir,target=${env.UV_PYTHON_INSTALL_DIR} \
+                                                    --mount type=volume,source=uv_python_cache_dir,target=${env.UV_PYTHON_CACHE_DIR} \
                                                     --mount type=volume,source=pipcache,target=${env.PIP_CACHE_DIR} \
                                                     --mount type=volume,source=uv_cache_dir,target=${env.UV_CACHE_DIR} \
                                                     --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
@@ -1178,7 +1179,7 @@ def call(){
                         environment{
                             PIP_CACHE_DIR='/tmp/pipcache'
                             UV_TOOL_DIR='/tmp/uvtools'
-                            UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
+                            UV_PYTHON_CACHE_DIR='/tmp/uvpython'
                             UV_CACHE_DIR='/tmp/uvcache'
                             UV_PROJECT_ENVIRONMENT='./venv'
                         }
@@ -1254,7 +1255,7 @@ def call(){
                          environment{
                             PIP_CACHE_DIR='/tmp/pipcache'
                             UV_TOOL_DIR='/tmp/uvtools'
-                            UV_PYTHON_INSTALL_DIR='/tmp/uvpython'
+                            UV_PYTHON_CACHE_DIR='/tmp/uvpython'
                             UV_CACHE_DIR='/tmp/uvcache'
                         }
                         agent {
