@@ -9,7 +9,7 @@ def createChocolateyConfigFile(configJsonFile, installerPackage, url){
 
 def makeMacPackage(){
     findFiles(glob: 'dist/*.whl').each{ wheel ->
-        sh "sh script/create_mac_standalone.sh ${wheel.path}"
+        sh "sh script/create_mac_standalone.sh --python-version=3.13+gil ${wheel.path}"
     }
 }
 
