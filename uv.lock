@@ -1487,12 +1487,10 @@ docs = [
     { name = "sphinx", version = "8.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 test = [
-    { name = "coverage" },
     { name = "pytest" },
     { name = "pytest-mock" },
 ]
 test-gui = [
-    { name = "coverage" },
     { name = "pytest" },
     { name = "pytest-mock" },
     { name = "pytest-qt" },
@@ -1548,12 +1546,10 @@ dev = [
 ]
 docs = [{ name = "sphinx" }]
 test = [
-    { name = "coverage" },
     { name = "pytest", specifier = ">7" },
     { name = "pytest-mock" },
 ]
 test-gui = [
-    { name = "coverage" },
     { name = "pytest", specifier = ">7" },
     { name = "pytest-mock" },
     { name = "pytest-qt" },
