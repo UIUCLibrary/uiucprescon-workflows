@@ -501,7 +501,7 @@ def call(){
                                             }
                                             stage('Audit Requirement Freeze File'){
                                                 steps{
-                                                    catchError(buildResult: 'SUCCESS', message: 'uv-secure found issues', stageResult: 'UNSTABLE') {
+                                                    catchError(buildResult: 'UNSTABLE', message: 'uv-secure found issues', stageResult: 'UNSTABLE') {
                                                         sh 'uv run --only-group=audit-dependencies --frozen --isolated uv-secure --disable-cache uv.lock'
                                                     }
                                                 }
@@ -637,9 +637,6 @@ def call(){
                                         [pattern: 'reports/', type: 'INCLUDE'],
                                         [pattern: '.coverage', type: 'INCLUDE']
                                     ])
-                            }
-                            failure{
-                                sh 'pip list'
                             }
                         }
                     }
