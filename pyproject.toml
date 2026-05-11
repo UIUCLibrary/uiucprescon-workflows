@@ -52,11 +52,9 @@ dev = [
     {include-group = "test"},
     {include-group = "tox"},
 ]
-audit-dependencies = ['uv-secure']
 deploy = ["twine"]
 ci = [
     "pysonar",
-    {include-group = "audit-dependencies"},
     {include-group = "deploy"},
     {include-group = "dev"}
 ]
