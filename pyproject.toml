@@ -10,8 +10,8 @@ dependencies = [
     "HathiZip>=0.1.10",
     "HathiValidate>=0.3.8",
     "pyhathiprep>=0.1.10",
-    "uiucprescon.imagevalidate>=0.1.9",
-    "uiucprescon.ocr>=0.1.4",
+    "uiucprescon.imagevalidate>=0.1.10post1",
+    "uiucprescon.ocr>=0.1.5.post1",
     "uiucprescon.packager[kdu]>=0.2.15",
     "uiucprescon.images",
     "py3exiv2bind>=0.1.11",
@@ -42,6 +42,7 @@ test = ["pytest>7", "pytest-mock"]
 test-gui = ["pytest-qt", {include-group = "test"}]
 docs = ["sphinx"]
 tox = ['tox']
+
 dev = [
     "coverage",
     "flake8",
