@@ -42,6 +42,10 @@ test = ["pytest>7", "pytest-mock"]
 test-gui = ["pytest-qt", {include-group = "test"}]
 docs = ["sphinx"]
 tox = ['tox']
+tox-uv = [
+    {include-group = "tox"},
+    "tox-uv-bare"
+]
 
 dev = [
     "coverage",

@@ -66,7 +66,7 @@ def testPackage(entry){
                      sh(
                         label: 'Testing with tox',
                         script: """uv python install cpython-${entry.PYTHON_VERSION}
-                                   uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                   uv run --only-group=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
                                 """
                     )
                 }
@@ -77,6 +77,7 @@ def testPackage(entry){
                     'UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython',
                     'UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache',
                     "UV_CONFIG_FILE=${createWindowUVConfig()}",
+                    "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
                 ]){
                     installMSVCRuntime('c:\\msvc_runtime\\')
                     bat(
@@ -84,7 +85,7 @@ def testPackage(entry){
                         script: """python -m venv venv
                                    .\\venv\\Scripts\\pip install --disable-pip-version-check uv
                                    .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                                   .\\venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                                   .\\venv\\Scripts\\uv run --only-group=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
                                 """
                     )
                 }
@@ -92,23 +93,29 @@ def testPackage(entry){
         }
     } else {
         if(isUnix()){
-            withEnv(["UV_CONFIG_FILE=${createUnixUvConfig()}"]){
+            withEnv([
+                "UV_CONFIG_FILE=${createUnixUvConfig()}",
+                "TOX_UV_PATH=${WORKSPACE}/venv/bin/uv"
+            ]){
                 sh(
                     label: 'Testing with tox',
                     script: """python3 -m venv venv
                                ./venv/bin/pip install --disable-pip-version-check uv
-                               ./venv/bin/uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                               ./venv/bin/uv run --only-group=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
                             """
                 )
             }
         } else {
-            withEnv(["UV_CONFIG_FILE=${createWindowUVConfig()}"]){
+            withEnv([
+                "UV_CONFIG_FILE=${createWindowUVConfig()}",
+                "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
+            ]){
                 bat(
                     label: 'Testing with tox',
                     script: """python -m venv venv
                                .\\venv\\Scripts\\pip install --disable-pip-version-check uv
                                .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                               .\\venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
+                               .\\venv\\Scripts\\uv run --only-group=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
                             """
                 )
             }
@@ -220,7 +227,7 @@ def getToxEnvs(){
             withEnv(["UV_CONFIG_FILE=${createUnixUvConfig()}"]){
                 return sh(
                     label: 'Get tox environments',
-                    script: 'uv run --only-group=tox --with=tox-uv --frozen --quiet tox list -d --no-desc',
+                    script: 'uv run --only-group=tox --frozen --quiet tox list -d --no-desc',
                     returnStdout: true,
                 ).trim().split('\n')
             }
@@ -229,7 +236,7 @@ def getToxEnvs(){
                 bat(script: 'python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv')
                 return bat(
                     label: 'Get tox environments',
-                    script: '@.\\venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen --quiet tox list -d --no-desc',
+                    script: '@.\\venv\\Scripts\\uv run --only-group=tox --frozen --quiet tox list -d --no-desc',
                     returnStdout: true,
                 ).trim().split('\r\n')
             }
@@ -679,7 +686,7 @@ def call(){
                                                                                 try{
                                                                                     sh( label: 'Running Tox',
                                                                                         script: """uv python install cpython-${version}
-                                                                                                   uv run --only-group=tox --with=tox-uv --frozen tox run --runner uv-venv-lock-runner -e ${toxEnv}
+                                                                                                   uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -e ${toxEnv}
                                                                                                 """
                                                                                         )
                                                                                 } catch (e){
@@ -750,12 +757,15 @@ def call(){
                                                                             ){
                                                                             installMSVCRuntime(env.VC_RUNTIME_INSTALLER_LOCATION)
                                                                             retry(3){
-                                                                                withEnv(["UV_CONFIG_FILE=${createWindowUVConfig()}"]){
+                                                                                withEnv([
+                                                                                    "UV_CONFIG_FILE=${createWindowUVConfig()}",
+                                                                                    "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
+                                                                                ]){
                                                                                     try{
                                                                                         bat(label: 'Running Tox',
                                                                                             script: '''python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv
                                                                                                        venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
-                                                                                                       venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen tox run --runner uv-venv-lock-runner -vv
+                                                                                                       venv\\Scripts\\uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -vv
                                                                                                        rmdir /s/q venv
                                                                                                     '''
                                                                                         )
