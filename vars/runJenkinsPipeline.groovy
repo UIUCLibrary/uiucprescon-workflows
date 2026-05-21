@@ -844,7 +844,7 @@ def call(){
                             stage('Packaging sdist and wheel'){
                                 agent {
                                     docker{
-                                        image 'python'
+                                        image 'ghcr.io/astral-sh/uv:debian'
                                         label 'linux && docker'
                                         args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_CACHE_DIR=/tmp/uvcache"
                                     }
@@ -855,10 +855,7 @@ def call(){
                                 steps{
                                     sh(
                                         label: 'Package',
-                                        script: '''python3 -m venv venv && venv/bin/pip install --disable-pip-version-check uv
-                                                   trap "rm -rf venv" EXIT
-                                                   ./venv/bin/uv build
-                                                '''
+                                        script: 'uv build'
                                     )
                                     stash includes: 'dist/*.whl,dist/*.tar.gz,dist/*.zip', name: 'PYTHON_PACKAGES'
                                 }
@@ -1188,7 +1185,7 @@ def call(){
                         }
                         agent {
                             docker{
-                                image 'python'
+                                image 'ghcr.io/astral-sh/uv:debian'
                                 label 'docker && linux && x86_64'
                                 args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_TOOL_DIR=/tmp/uvtools -e UV_PYTHON_CACHE_DIR=/tmp/uvpython -e UV_CACHE_DIR=/tmp/uvcache"
                             }
@@ -1216,25 +1213,17 @@ def call(){
                         }
                         steps{
                             unstash 'PYTHON_PACKAGES'
-                            withEnv(["TWINE_REPOSITORY_URL=${SERVER_URL}"]){
+                            withEnv(["UV_PUBLISH_URL=${SERVER_URL}"]){
                                 withCredentials(
                                     [
                                         usernamePassword(
                                             credentialsId: 'jenkins-nexus',
-                                            passwordVariable: 'TWINE_PASSWORD',
-                                            usernameVariable: 'TWINE_USERNAME'
+                                            passwordVariable: 'UV_PUBLISH_PASSWORD',
+                                            usernameVariable: 'UV_PUBLISH_USERNAME'
                                         )
                                     ]
                                 ){
-                                    sh(
-                                        label: 'Uploading to pypi',
-                                        script: '''python3 -m venv venv
-                                                   trap "rm -rf venv" EXIT
-                                                   ./venv/bin/pip install --disable-pip-version-check uv
-                                                   ./venv/bin/uv sync --frozen --only-group deploy
-                                                   ./venv/bin/twine upload --disable-progress-bar --non-interactive dist/*
-                                                '''
-                                    )
+                                    sh(label: 'Uploading to pypi', script: 'uv publish dist/*')
                                 }
                             }
                         }
