@@ -47,13 +47,15 @@ def testPackage(entry){
     if(['linux', 'windows'].contains(entry.OS) && params.containsKey("INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()) && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]){
         docker.image(isUnix() ? 'ghcr.io/astral-sh/uv:debian': 'python')
             .inside(
-                isUnix() ?
-                    '--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.local/share:exec --tmpfs /.local/bin:exec'
-                :
-                    '--mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
-                     --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
-                     --mount type=volume,source=msvc-runtime,target=c:\\msvc_runtime \
-                     --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
+                "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" " + (
+                    isUnix() ?
+                        '--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.local/share:exec --tmpfs /.local/bin:exec'
+                    :
+                        '--mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                         --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                         --mount type=volume,source=msvc-runtime,target=c:\\msvc_runtime \
+                         --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
+                )
             ){
              if(isUnix()){
                 withEnv([
@@ -63,12 +65,17 @@ def testPackage(entry){
                     'UV_CACHE_DIR=/tmp/uvcache',
                     "UV_CONFIG_FILE=${createUnixUvConfig()}",
                 ]){
-                     sh(
-                        label: 'Testing with tox',
-                        script: """uv python install cpython-${entry.PYTHON_VERSION}
-                                   uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                """
-                    )
+                    sh "uv python install cpython-${entry.PYTHON_VERSION}"
+                    def attempt = 0
+                    retry(2){
+                        withEnv([(attempt == 0) ? "UV_OFFLINE=1" : 'UV_OFFLINE=0']){
+                            attempt += 1
+                            sh(
+                                label: "Testing with tox: ${(attempt == 1) ? "Offline" : 'Online'}",
+                                script: "uv run --only-group=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}"
+                            )
+                        }
+                    }
                 }
              } else {
                 withEnv([
@@ -77,40 +84,68 @@ def testPackage(entry){
                     'UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython',
                     'UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache',
                     "UV_CONFIG_FILE=${createWindowUVConfig()}",
+                    "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
                 ]){
                     installMSVCRuntime('c:\\msvc_runtime\\')
-                    bat(
-                        label: 'Testing with tox',
-                        script: """python -m venv venv
-                                   .\\venv\\Scripts\\pip install --disable-pip-version-check uv
-                                   .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                                   .\\venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                                """
-                    )
+                    bat '''python -m venv venv
+                       .\\venv\\Scripts\\pip install --disable-pip-version-check uv
+                       .\\venv\\Scripts\\uv python update-shell
+                    '''
+                    bat ".\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}"
+                    def attempt = 0
+                    retry(2){
+                        withEnv([(attempt == 0) ? "UV_OFFLINE=1" : 'UV_OFFLINE=0']){
+                            attempt += 1
+                            bat(
+                                label: "Testing with tox: ${(attempt == 1) ? "Offline" : 'Online'}",
+                                script: ".\\venv\\Scripts\\uv run --only-group=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}"
+                            )
+                        }
+                    }
                 }
              }
         }
     } else {
         if(isUnix()){
-            withEnv(["UV_CONFIG_FILE=${createUnixUvConfig()}"]){
-                sh(
-                    label: 'Testing with tox',
-                    script: """python3 -m venv venv
-                               ./venv/bin/pip install --disable-pip-version-check uv
-                               ./venv/bin/uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                            """
-                )
+            withEnv([
+                "UV_CONFIG_FILE=${createUnixUvConfig()}",
+                "TOX_UV_PATH=${WORKSPACE}/venv/bin/uv"
+            ]){
+                sh """python3 -m venv venv
+                      ./venv/bin/pip install --disable-pip-version-check uv
+                   """
+                def attempt = 0
+                retry(2){
+                    withEnv([(attempt == 0) ? 'UV_OFFLINE=1' : 'UV_OFFLINE=0']){
+                        attempt += 1
+                        sh(
+                            label: "Testing with tox: ${(attempt == 1) ? "Offline" : 'Online'}",
+                            script: "./venv/bin/uv run --only-group=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}"
+                        )
+                    }
+                }
+
             }
         } else {
-            withEnv(["UV_CONFIG_FILE=${createWindowUVConfig()}"]){
-                bat(
-                    label: 'Testing with tox',
-                    script: """python -m venv venv
-                               .\\venv\\Scripts\\pip install --disable-pip-version-check uv
-                               .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}
-                               .\\venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}
-                            """
-                )
+            withEnv([
+                "UV_CONFIG_FILE=${createWindowUVConfig()}",
+                "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
+            ]){
+                bat '''python -m venv venv
+                       .\\venv\\Scripts\\pip install --disable-pip-version-check uv
+                       .\\venv\\Scripts\\uv python update-shell
+                    '''
+                bat ".\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}"
+                def attempt = 0
+                retry(2){
+                    withEnv([(attempt == 0) ? 'UV_OFFLINE=1' : 'UV_OFFLINE=0']){
+                        attempt += 1
+                        bat(
+                            label: 'Testing with tox',
+                            script: ".\\venv\\Scripts\\uv run --only-group=tox-uv --frozen tox --installpkg ${findFiles(glob: entry.PACKAGE_TYPE == 'wheel' ? 'dist/*.whl' : 'dist/*.tar.gz')[0].path} -e py${entry.PYTHON_VERSION.replace('.', '')}"
+                        )
+                    }
+                }
             }
         }
     }
@@ -220,7 +255,7 @@ def getToxEnvs(){
             withEnv(["UV_CONFIG_FILE=${createUnixUvConfig()}"]){
                 return sh(
                     label: 'Get tox environments',
-                    script: 'uv run --only-group=tox --with=tox-uv --frozen --quiet tox list -d --no-desc',
+                    script: 'uv run --only-group=tox --frozen --quiet tox list -d --no-desc',
                     returnStdout: true,
                 ).trim().split('\n')
             }
@@ -229,7 +264,7 @@ def getToxEnvs(){
                 bat(script: 'python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv')
                 return bat(
                     label: 'Get tox environments',
-                    script: '@.\\venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen --quiet tox list -d --no-desc',
+                    script: '@.\\venv\\Scripts\\uv run --only-group=tox --frozen --quiet tox list -d --no-desc',
                     returnStdout: true,
                 ).trim().split('\r\n')
             }
@@ -248,7 +283,7 @@ def getToxEnvs(){
 def getLinusToxEnvs(){
     node('docker && linux && x86_64'){
         try{
-            docker.image('ghcr.io/astral-sh/uv:debian').inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp'){
+            docker.image('ghcr.io/astral-sh/uv:debian').inside("--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\"  --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_TOOL_DIR=/tmp/uvtools -e UV_PYTHON_CACHE_DIR=/tmp/uvpython -e UV_CACHE_DIR=/tmp/uvcache"){
                 return getToxEnvs()
             }
         } finally{
@@ -263,9 +298,14 @@ def getWindowsToxEnvs(){
         try{
             docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
                 .inside("\
-                    --mount type=volume,source=uv_python_cache_dir,target=${env.UV_PYTHON_CACHE_DIR} \
-                    --mount type=volume,source=pipcache,target=${env.PIP_CACHE_DIR} \
-                    --mount type=volume,source=uv_cache_dir,target=${env.UV_CACHE_DIR}\
+                    --label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" \
+                    --mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                    -e UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                    --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                    -e PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                    --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                    -e UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                    -e UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools \
                     "
                 ){
                     return getToxEnvs()
@@ -379,17 +419,13 @@ def call(){
                     docker{
                         image 'sphinxdoc/sphinx-latexpdf'
                         label 'linux && docker && x86'
-                        args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.local/share:exec'
+                        args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_PYTHON_CACHE_DIR=/tmp/uvpython -e UV_CACHE_DIR=/tmp/uvcache -e UV_TOOL_DIR=/tmp/uvtools --tmpfs /.local/share:exec"
                     }
                 }
                 options {
                     retry(conditions: [agent()], count: 2)
                 }
                 environment{
-                    PIP_CACHE_DIR = '/tmp/pipcache'
-                    UV_TOOL_DIR = '/tmp/uvtools'
-                    UV_PYTHON_CACHE_DIR = '/tmp/uvpython'
-                    UV_CACHE_DIR = '/tmp/uvcache'
                     UV_PYTHON = '3.11'
                     UV_CONFIG_FILE=createUnixUvConfig()
 //                     UV_PROJECT_ENVIRONMENT='./venv'
@@ -447,14 +483,10 @@ def call(){
                             docker{
                                 image 'ghcr.io/astral-sh/uv:debian'
                                 label 'docker && linux && x86_64' // needed for pysonar-scanner which is x86_64 only as of 0.2.0.520
-                                args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.config:exec --tmpfs /.local/share:exec --tmpfs /.local/bin:exec --tmpfs /.tree-sitter:exec'
+                                args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_TOOL_DIR=/tmp/uvtools -e UV_PYTHON_CACHE_DIR=/tmp/uvpython -e UV_CACHE_DIR=/tmp/uvcache --tmpfs /.config:exec --tmpfs /.local/share:exec --tmpfs /.local/bin:exec --tmpfs /.tree-sitter:exec"
                             }
                         }
                         environment{
-                            PIP_CACHE_DIR='/tmp/pipcache'
-                            UV_TOOL_DIR='/tmp/uvtools'
-                            UV_PYTHON_CACHE_DIR='/tmp/uvpython'
-                            UV_CACHE_DIR='/tmp/uvcache'
                             UV_PYTHON='3.11'
                             QT_QPA_PLATFORM='offscreen'
                             UV_CONFIG_FILE=createUnixUvConfig()
@@ -501,8 +533,8 @@ def call(){
                                             }
                                             stage('Audit Requirement Freeze File'){
                                                 steps{
-                                                    catchError(buildResult: 'SUCCESS', message: 'uv-secure found issues', stageResult: 'UNSTABLE') {
-                                                        sh 'uv run --only-group=audit-dependencies --frozen --isolated uv-secure --disable-cache uv.lock'
+                                                    catchError(buildResult: 'UNSTABLE', message: 'uv audit', stageResult: 'UNSTABLE') {
+                                                        sh 'uv audit'
                                                     }
                                                 }
                                             }
@@ -638,9 +670,6 @@ def call(){
                                         [pattern: '.coverage', type: 'INCLUDE']
                                     ])
                             }
-                            failure{
-                                sh 'pip list'
-                            }
                         }
                     }
                     stage('Tox'){
@@ -653,10 +682,6 @@ def call(){
                                     expression {return nodesByLabel('linux && docker && x86').size() > 0}
                                 }
                                 environment{
-                                    PIP_CACHE_DIR='/tmp/pipcache'
-                                    UV_TOOL_DIR='/tmp/uvtools'
-                                    UV_PYTHON_CACHE_DIR='/tmp/uvpython'
-                                    UV_CACHE_DIR='/tmp/uvcache'
                                     QT_QPA_PLATFORM='offscreen'
                                 }
                                 steps{
@@ -672,17 +697,17 @@ def call(){
                                                             def retryTimes = 1
                                                             def image
                                                             retry(retryTimes){
-                                                                image = docker.build(UUID.randomUUID().toString(), '-f ci/docker/linux/jenkins/Dockerfile --build-arg UV_INDEX_URL --build-arg UV_EXTRA_INDEX_URL .')
+                                                                image = docker.build(UUID.randomUUID().toString(), '-f ci/docker/linux/jenkins/Dockerfile --label=purpose=ci --build-arg UV_INDEX_URL --build-arg UV_EXTRA_INDEX_URL .')
                                                             }
                                                             try{
                                                                 try{
                                                                     withEnv(["UV_CONFIG_FILE=${createUnixUvConfig()}"]){
-                                                                        image.inside('--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.local/share:exec --tmpfs /.local/bin:exec'){
+                                                                        image.inside("--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_TOOL_DIR=/tmp/uvtools -e UV_PYTHON_CACHE_DIR=/tmp/uvpython -e UV_CACHE_DIR=/tmp/uvcache --tmpfs /.local/share:exec --tmpfs /.local/bin:exec"){
                                                                             retry(retryTimes){
                                                                                 try{
                                                                                     sh( label: 'Running Tox',
                                                                                         script: """uv python install cpython-${version}
-                                                                                                   uv run --only-group=tox --with=tox-uv --frozen tox run --runner uv-venv-lock-runner -e ${toxEnv}
+                                                                                                   uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -e ${toxEnv}
                                                                                                 """
                                                                                         )
                                                                                 } catch (e){
@@ -719,10 +744,6 @@ def call(){
                                     expression {return nodesByLabel('windows && docker && x86').size() > 0}
                                 }
                                 environment{
-                                    PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\pipcache'
-                                    UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvtools'
-                                    UV_PYTHON_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvpython'
-                                    UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
                                     VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime'
                                 }
                                 steps{
@@ -745,20 +766,28 @@ def call(){
                                                                     try{
                                                                         docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
                                                                             .inside("\
-                                                                                --mount type=volume,source=uv_python_cache_dir,target=${env.UV_PYTHON_CACHE_DIR} \
+                                                                                --label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" \
+                                                                                --mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                                                                                -e UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
                                                                                 --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
-                                                                                --mount type=volume,source=pipcache,target=${env.PIP_CACHE_DIR} \
-                                                                                --mount type=volume,source=uv_cache_dir,target=${env.UV_CACHE_DIR}\
+                                                                                --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                                                                                -e PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                                                                                --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                                                                                -e UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                                                                                -e UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools \
                                                                                 "
                                                                             ){
                                                                             installMSVCRuntime(env.VC_RUNTIME_INSTALLER_LOCATION)
                                                                             retry(3){
-                                                                                withEnv(["UV_CONFIG_FILE=${createWindowUVConfig()}"]){
+                                                                                withEnv([
+                                                                                    "UV_CONFIG_FILE=${createWindowUVConfig()}",
+                                                                                    "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
+                                                                                ]){
                                                                                     try{
                                                                                         bat(label: 'Running Tox',
                                                                                             script: '''python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv
                                                                                                        venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
-                                                                                                       venv\\Scripts\\uv run --only-group=tox --with=tox-uv --frozen tox run --runner uv-venv-lock-runner -vv
+                                                                                                       venv\\Scripts\\uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -vv
                                                                                                        rmdir /s/q venv
                                                                                                     '''
                                                                                         )
@@ -815,14 +844,10 @@ def call(){
                             stage('Packaging sdist and wheel'){
                                 agent {
                                     docker{
-                                        image 'python'
+                                        image 'ghcr.io/astral-sh/uv:debian'
                                         label 'linux && docker'
-                                        args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
-                                      }
-                                }
-                                environment{
-                                    PIP_CACHE_DIR='/tmp/pipcache'
-                                    UV_CACHE_DIR='/tmp/uvcache'
+                                        args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_CACHE_DIR=/tmp/uvcache"
+                                    }
                                 }
                                 options {
                                     timeout(5)
@@ -830,10 +855,7 @@ def call(){
                                 steps{
                                     sh(
                                         label: 'Package',
-                                        script: '''python3 -m venv venv && venv/bin/pip install --disable-pip-version-check uv
-                                                   trap "rm -rf venv" EXIT
-                                                   ./venv/bin/uv build
-                                                '''
+                                        script: 'uv build'
                                     )
                                     stash includes: 'dist/*.whl,dist/*.tar.gz,dist/*.zip', name: 'PYTHON_PACKAGES'
                                 }
@@ -860,12 +882,10 @@ def call(){
                                             docker{
                                                 image 'ghcr.io/astral-sh/uv:debian'
                                                 label 'linux && docker'
-                                                args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
+                                                args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e UV_TOOL_DIR=/tmp/uvtools -e UV_CACHE_DIR=/tmp/uvcache"
                                             }
                                         }
                                         environment{
-                                            UV_TOOL_DIR='/tmp/uvtools'
-                                            UV_CACHE_DIR='/tmp/uvcache'
                                             UV_PROJECT_ENVIRONMENT='./venv'
                                         }
                                         steps{
@@ -1013,10 +1033,6 @@ def call(){
                                     equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
                                 }
                                 environment{
-                                  PIP_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\pipcache'
-                                  UV_TOOL_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvtools'
-                                  UV_PYTHON_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvpython'
-                                  UV_CACHE_DIR='C:\\Users\\ContainerUser\\Documents\\cache\\uvcache'
                                   VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime'
                                 }
                                 stages{
@@ -1026,9 +1042,14 @@ def call(){
                                                image 'python'
                                                label 'windows && x86_64 && docker'
                                                args " \
-                                                    --mount type=volume,source=uv_python_cache_dir,target=${env.UV_PYTHON_CACHE_DIR} \
-                                                    --mount type=volume,source=pipcache,target=${env.PIP_CACHE_DIR} \
-                                                    --mount type=volume,source=uv_cache_dir,target=${env.UV_CACHE_DIR} \
+                                                    --label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" \
+                                                    --mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                                                    -e UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                                                    --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                                                    -e PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                                                    --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                                                    -e UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                                                    -e UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools \
                                                     --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
                                                     "
                                            }
@@ -1068,9 +1089,9 @@ def call(){
                                     stage('Test .msi Installer'){
                                         agent {
                                             docker {
-                                                args '-u ContainerAdministrator'
                                                 image 'mcr.microsoft.com/windows/servercore:ltsc2022'
                                                 label 'windows && docker && x86_64'
+                                                args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" -u ContainerAdministrator"
                                             }
                                         }
                                         options {
@@ -1160,17 +1181,13 @@ def call(){
                 stages {
                     stage('Deploy to pypi') {
                         environment{
-                            PIP_CACHE_DIR='/tmp/pipcache'
-                            UV_TOOL_DIR='/tmp/uvtools'
-                            UV_PYTHON_CACHE_DIR='/tmp/uvpython'
-                            UV_CACHE_DIR='/tmp/uvcache'
                             UV_PROJECT_ENVIRONMENT='./venv'
                         }
                         agent {
                             docker{
-                                image 'python'
+                                image 'ghcr.io/astral-sh/uv:debian'
                                 label 'docker && linux && x86_64'
-                                args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
+                                args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_TOOL_DIR=/tmp/uvtools -e UV_PYTHON_CACHE_DIR=/tmp/uvpython -e UV_CACHE_DIR=/tmp/uvcache"
                             }
                         }
                         when{
@@ -1196,25 +1213,17 @@ def call(){
                         }
                         steps{
                             unstash 'PYTHON_PACKAGES'
-                            withEnv(["TWINE_REPOSITORY_URL=${SERVER_URL}"]){
+                            withEnv(["UV_PUBLISH_URL=${SERVER_URL}"]){
                                 withCredentials(
                                     [
                                         usernamePassword(
                                             credentialsId: 'jenkins-nexus',
-                                            passwordVariable: 'TWINE_PASSWORD',
-                                            usernameVariable: 'TWINE_USERNAME'
+                                            passwordVariable: 'UV_PUBLISH_PASSWORD',
+                                            usernameVariable: 'UV_PUBLISH_USERNAME'
                                         )
                                     ]
                                 ){
-                                    sh(
-                                        label: 'Uploading to pypi',
-                                        script: '''python3 -m venv venv
-                                                   trap "rm -rf venv" EXIT
-                                                   ./venv/bin/pip install --disable-pip-version-check uv
-                                                   ./venv/bin/uv sync --frozen --only-group deploy
-                                                   ./venv/bin/twine upload --disable-progress-bar --non-interactive dist/*
-                                                '''
-                                    )
+                                    sh(label: 'Uploading to pypi', script: 'uv publish dist/*')
                                 }
                             }
                         }
@@ -1235,17 +1244,11 @@ def call(){
                             beforeAgent true
                             beforeInput true
                         }
-                         environment{
-                            PIP_CACHE_DIR='/tmp/pipcache'
-                            UV_TOOL_DIR='/tmp/uvtools'
-                            UV_PYTHON_CACHE_DIR='/tmp/uvpython'
-                            UV_CACHE_DIR='/tmp/uvcache'
-                        }
                         agent {
                             docker{
                                 image 'python'
                                 label 'docker && linux'
-                                args '--mount source=python-tmp-uiucpreson_workflows,target=/tmp'
+                                args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e UV_CACHE_DIR=/tmp/uvcache -e UV_PYTHON_CACHE_DIR=/tmp/uvpython -e UV_TOOL_DIR=/tmp/uvtools -e PIP_CACHE_DIR=/tmp/pipcache"
                             }
                         }
                         options{
