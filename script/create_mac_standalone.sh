@@ -16,14 +16,19 @@ install_temporary_uv(){
 }
 
 generate_release_with_uv(){
-    uv=$1
-    project_root=$2
-    wheel=$3
-    python_version=$4
-
+   local uv=$1
+   local project_root=$2
+   local wheel=$3
+   local python_version=$4
+    if [ "$python_version" = "" ]
+    then
+        echo "generate_release_with_uv() failed: No python version specified"
+        print_usage
+        exit 1
+    fi
     local build_path
     build_path=$(mktemp -d)
-#     echo "python_version ${python_version:+--python=$python_version} "
+
     $uv export ${python_version:+--python=$python_version} --no-hashes --format requirements-txt --extra gui --no-dev --no-emit-project > ${build_path}/requirements-gui.txt
     $uv tool run --python=${python_version} --from package_speedwagon@${PACKAGE_SPEEDWAGON_SCRIPT_URL} package_speedwagon $wheel -r ${build_path}/requirements-gui.txt --app-name="${APP_NAME}" --app-bootstrap-script="${BOOTSTRAP_SCRIPT}"
 
