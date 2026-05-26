@@ -40,21 +40,25 @@ uiucprescon_deprecated_workflows = 'speedwagon_uiucprescon.deprecated_workflows'
 [dependency-groups]
 test = ["pytest>7", "pytest-mock"]
 test-gui = ["pytest-qt", {include-group = "test"}]
+code-style = ["pydocstyle", "flake8"]
 docs = ["sphinx"]
 tox = ['tox']
 tox-uv = [
     {include-group = "tox"},
     "tox-uv-bare"
 ]
-
+type-checking = [
+    "mypy",
+    "types-PyYAML",
+    "types-requests",
+]
 dev = [
     "coverage",
-    "flake8",
-    "mypy",
-    "pydocstyle",
-    "pylint",
-    "types-requests",
+    "lxml",
     {include-group = "docs"},
+    {include-group = "lint"},
+    {include-group = "code-style"},
+    {include-group = "type-checking"},
     {include-group = "test"},
     {include-group = "tox"},
 ]
@@ -64,6 +68,8 @@ ci = [
     {include-group = "deploy"},
     {include-group = "dev"}
 ]
+lint = ["pylint", "ruff"]
+security = ["bandit"]
 
 [tool.uv.sources]
 speedwagon = {index = "uiuc_prescon_python"}
