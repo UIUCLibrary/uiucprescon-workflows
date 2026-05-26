@@ -413,6 +413,9 @@ def call(){
             booleanParam(name: 'DEPLOY_STANDALONE_PACKAGERS', defaultValue: false, description: 'Deploy standalone packages')
             booleanParam(name: 'DEPLOY_DOCS', defaultValue: false, description: 'Update online documentation')
         }
+        options {
+            preserveStashes()
+        }
         stages {
             stage('Build Sphinx Documentation'){
                 agent {
