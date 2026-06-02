@@ -94,7 +94,7 @@ class TestValidateImageMetadataWorkflow:
                 )
             }
         )
-        assert len(findings) > 0, f"No findings found, expected at least one"
+        assert len(findings) > 0, "No findings found, expected at least one"
             # list(itertools.chain.from_iterable(findings))
         # ) > 0
         # with pytest.raises(ValueError):
