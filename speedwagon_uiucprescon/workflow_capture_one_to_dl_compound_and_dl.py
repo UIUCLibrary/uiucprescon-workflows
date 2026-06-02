@@ -295,7 +295,6 @@ class CaptureOneToDlCompoundAndDLWorkflow(Workflow[UserArgs]):
             **job_args:
 
         """
-
         existing_package = job_args['package']
         source_path = job_args["source_path"]
 
