@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 
-from typing import Optional,TypedDict
+from typing import Optional, TypedDict
 
 from uiucprescon import packager
 from uiucprescon.packager.packages.collection import Package
