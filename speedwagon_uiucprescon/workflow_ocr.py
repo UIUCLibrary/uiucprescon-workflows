@@ -78,7 +78,7 @@ class OCRWorkflow(speedwagon.Workflow[UserArgs]):
         self._update_description()
 
     def set_options_backend(
-        self, options_backend: speedwagon.workflow.OptionsBackend
+        self, options_backend: speedwagon.config.workflow.AbsWorkflowBackend
     ) -> None:
         super().set_options_backend(options_backend)
         self._update_description()

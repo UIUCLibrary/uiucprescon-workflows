@@ -1,18 +1,14 @@
 """Workflow for converting Capture One tiff file into DL compound format."""
 from __future__ import annotations
 import logging
-import typing
-import warnings
 
-from typing import Any, List, Optional, Mapping, TypedDict
+from typing import Optional, TypedDict
 
 from uiucprescon import packager
 from uiucprescon.packager.packages.collection import Package
-from uiucprescon.packager.common import Metadata
 
 import speedwagon
-from speedwagon import validators, utils
-from speedwagon.job import Workflow
+from speedwagon import utils
 
 
 CaptureOneToDlCompoundWorkflowTaskArgs = TypedDict(

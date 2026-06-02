@@ -316,7 +316,7 @@ def _convert_dir_entry(start_point):
     for name, data in inspect.getmembers(start_point):
         if not isinstance(data, list):
             continue
-        if name in  ["children", "files"]:
+        if name in ["children", "files"]:
             continue
         contents = []
         for c in data:
@@ -329,6 +329,7 @@ def _convert_dir_entry(start_point):
     for child in start_point.children:
         _convert_dir_entry(child)
 
+
 class FindHathiPackagesTask(speedwagon.tasks.Subtask[List[typing.Any]]):
     image_types = {
         "TIFF": HathiTiff(),
@@ -339,7 +340,6 @@ class FindHathiPackagesTask(speedwagon.tasks.Subtask[List[typing.Any]]):
         super().__init__()
         self.image_type = image_type
         self.search_path = search_path
-
 
     def locate_packages(self) -> Sequence[collection.Package]:
         package_factory = PackageFactory(self.image_types[self.image_type])

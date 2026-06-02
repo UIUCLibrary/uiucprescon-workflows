@@ -33,7 +33,7 @@ html_static_path = ['_static']
 
 
 latex_documents = [
-    ('index', f'Speedwagon(UIUC_Prescon_Edition).tex',
+    ('index', 'Speedwagon(UIUC_Prescon_Edition).tex',
      f'{project} Documentation',
      "University of Illinois at Urbana Champaign",
      'manual'),

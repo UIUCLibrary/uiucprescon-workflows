@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "speedwagon-uiucprescon"
 version = "0.3.2.dev5"
 dependencies = [
-    "speedwagon>=0.4.0b16",
+    "speedwagon>=0.4.0b17",
     "HathiZip>=0.1.10",
     "HathiValidate>=0.3.8",
     "pyhathiprep>=0.1.10",
@@ -136,6 +136,9 @@ select = ["E", "F", "W", "D", "B", "C"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
 #
 [tool.windows_standalone_packager.cpack_config_variables]
 CPACK_WIX_UPGRADE_GUID = "BD289D57-8F94-4F4D-9B6D-82A532F3514C"
