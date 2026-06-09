@@ -1480,6 +1480,18 @@ qt = [
 ]
 
 [[package]]
+name = "speedwagon-contrib"
+version = "0.1.1"
+source = { registry = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" }
+dependencies = [
+    { name = "speedwagon" },
+]
+sdist = { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon-contrib/0.1.1/speedwagon_contrib-0.1.1.tar.gz", hash = "sha256:f695746dedc5abb4421151922e1546144f9ae979e54cc694743c4cf52b6dacaa" }
+wheels = [
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon-contrib/0.1.1/speedwagon_contrib-0.1.1-py3-none-any.whl", hash = "sha256:bc807c4ed6edc195ba1476590b7514c8654f0df088a7860da403185dccbbd963" },
+]
+
+[[package]]
 name = "speedwagon-uiucprescon"
 version = "0.3.2.dev6"
 source = { editable = "." }
@@ -1498,6 +1510,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+contrib = [
+    { name = "speedwagon-contrib" },
+]
 gui = [
     { name = "speedwagon", extra = ["qt"] },
 ]
@@ -1586,13 +1601,14 @@ requires-dist = [
     { name = "pykdu-compress", specifier = ">=0.1.9", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "speedwagon", specifier = ">=0.4.0b17", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "speedwagon", extras = ["qt"], marker = "extra == 'gui'", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
+    { name = "speedwagon-contrib", marker = "extra == 'contrib'", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
     { name = "uiucprescon-images", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "uiucprescon-imagevalidate", specifier = ">=0.1.10.post1", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "uiucprescon-ocr", specifier = ">=0.1.5.post1", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "uiucprescon-packager", extras = ["kdu"], specifier = ">=0.2.15", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
 ]
-provides-extras = ["gui"]
+provides-extras = ["gui", "contrib"]
 
 [package.metadata.requires-dev]
 ci = [
