@@ -32,6 +32,7 @@ requires-python = ">=3.10"
 
 [project.optional-dependencies]
 gui = ["speedwagon[Qt]"]
+contrib = ["speedwagon-contrib"]
 
 [project.entry-points.'speedwagon.plugins']
 uiucprescon_active_workflows = 'speedwagon_uiucprescon.active_workflows'
@@ -82,6 +83,7 @@ pyhathiprep = {index = "uiuc_prescon_python"}
 "uiucprescon.images" = {index = "uiuc_prescon_python"}
 py3exiv2bind = {index = "uiuc_prescon_python"}
 pykdu-compress = {index = "uiuc_prescon_python"}
+speedwagon-contrib = {index = "uiuc_prescon_python"}
 
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
