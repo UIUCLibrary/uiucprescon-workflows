@@ -33,7 +33,7 @@ function Build-Standalone{
     $env:UV_EXTRA_INDEX_URL = "$ExtraIndexUrl"
     & "$Uv" export --no-hashes --format requirements-txt --extra gui --extra contrib --no-dev --no-emit-project > "${fullPath}\requirements-gui.txt"
     Get-Content -Path "${fullPath}\requirements-gui.txt"
-    & "$Uv" tool run --with-requirements "${fullPath}\requirements-gui.txt" --python 3.11 --from package_speedwagon@${PACKAGE_SCRIPT_URL} package_speedwagon $Wheel -r "${fullPath}\requirements-gui.txt" --app-name="$APP_NAME" --app-bootstrap-script="$BOOTSTRAP_SCRIPT" --hidden-import="speedwagon_contrib"
+    & "$Uv" tool run --with-requirements "${fullPath}\requirements-gui.txt" --python 3.14 --from package_speedwagon@${PACKAGE_SCRIPT_URL} package_speedwagon $Wheel -r "${fullPath}\requirements-gui.txt" --app-name="$APP_NAME" --app-bootstrap-script="$BOOTSTRAP_SCRIPT" --hidden-import="speedwagon_contrib"
 
 }
 function Get-UV() {
