@@ -1460,7 +1460,7 @@ wheels = [
 
 [[package]]
 name = "speedwagon"
-version = "0.4.0b17"
+version = "0.4.0b18"
 source = { registry = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" }
 dependencies = [
     { name = "lxml" },
@@ -1469,9 +1469,9 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b17/speedwagon-0.4.0b17.tar.gz", hash = "sha256:b1a64887bea03ce3e49bfc7efc1ca4ada9242b740ee68951c7ba20913b6fc85d" }
+sdist = { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b18/speedwagon-0.4.0b18.tar.gz", hash = "sha256:0d941c8af11ff7cc9baa650095dc88985f25f0e766af9e2c6c97468d6eb07209" }
 wheels = [
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b17/speedwagon-0.4.0b17-py3-none-any.whl", hash = "sha256:78211392e70ca14af8867c38fd08b63e861b35f5901a401e39530b94813857cf" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b18/speedwagon-0.4.0b18-py3-none-any.whl", hash = "sha256:47cb19ed640534d0a5d353bada8d68fb4715703ff5a4ead57f65fc7c649a4b7d" },
 ]
 
 [package.optional-dependencies]
@@ -1599,7 +1599,7 @@ requires-dist = [
     { name = "py3exiv2bind", specifier = ">=0.1.11", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "pyhathiprep", specifier = ">=0.1.10", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "pykdu-compress", specifier = ">=0.1.9", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
-    { name = "speedwagon", specifier = ">=0.4.0b17", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
+    { name = "speedwagon", specifier = ">=0.4.0b18", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "speedwagon", extras = ["qt"], marker = "extra == 'gui'", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "speedwagon-contrib", marker = "extra == 'contrib'", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
