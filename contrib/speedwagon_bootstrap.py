@@ -8,6 +8,7 @@
 # nuitka-project: --include-package=http.cookies
 # nuitka-project: --include-package=pytz_deprecation_shim
 """Bootstrapping the application when running as standalone."""
+import logging
 import os.path
 from multiprocessing import freeze_support
 import sys
@@ -26,13 +27,16 @@ uiucprescon_active_workflows = True
 
 def main():  # pragma: no cover
     """Run main application."""
-    # import speedwagon.startup
+    import speedwagon.startup
     import speedwagon.config.config
 
     parser = speedwagon.config.config.CliArgsSetter.get_arg_parser()
     args = parser.parse_args(sys.argv[1:])
-
     if args.command is not None:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(logging.INFO)
+        speedwagon.startup.logger.addHandler(handler)
+        speedwagon.startup.logger.setLevel(logging.INFO)
         speedwagon.startup.run_command(command_name=args.command, args=args)
         return
     app = speedwagon.startup.ApplicationLauncher()
@@ -54,8 +58,6 @@ def main():  # pragma: no cover
                 print(f"Creating a new config file at {config_ini}")
                 f.write(DEFAULT_CONFIG_DATA)
                 f.write("\n")
-
-
     app.startup_tasks = [
         verify_plugin_start
         ]

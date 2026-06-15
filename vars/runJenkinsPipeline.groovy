@@ -27,6 +27,17 @@ def deploySingleStandalone(file, url, authentication) {
     }
 }
 
+def testMacStandalone(glob){
+    findFiles(glob: glob).each{
+        sh(
+            label: "Testing ${it.path}",
+            script: """mkdir -p ${WORKSPACE_TMP}/macos
+                       ci/jenkins/scripts/test-apple-bundle.sh --test-path='${WORKSPACE_TMP}/macos' '${it.path}'
+                   """
+           )
+    }
+}
+
 // def deployStandalone(glob, url) {
 //     script{
 //         findFiles(glob: glob).each{
@@ -966,9 +977,6 @@ def call(){
                     stage('End-user packages'){
                         parallel{
                             stage('Mac Application Bundle x86_64'){
-                                agent{
-                                    label 'mac && python3 && x86_64'
-                                }
                                 when{
                                     allOf{
                                         equals expected: true, actual: params['INCLUDE_MACOS-X86_64']
@@ -977,31 +985,47 @@ def call(){
                                     }
                                     beforeInput true
                                 }
-                                steps{
-                                    unstash 'PYTHON_PACKAGES'
-                                    script{
-                                        makeMacPackage()
+                                stages{
+                                    stage('Build Apple Bundle'){
+                                        agent{
+                                            label 'mac && python3 && x86_64'
+                                        }
+                                        steps{
+                                            unstash 'PYTHON_PACKAGES'
+                                            script{
+                                                makeMacPackage()
+                                            }
+                                            archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                            stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                        }
+                                        post{
+                                            cleanup{
+                                                cleanWs(
+                                                    deleteDirs: true,
+                                                    patterns: [
+                                                        [pattern: 'dist/', type: 'INCLUDE'],
+                                                        [pattern: 'build/', type: 'INCLUDE'],
+                                                        [pattern: 'venv/', type: 'INCLUDE'],
+                                                    ]
+                                                )
+                                            }
+                                        }
                                     }
-                                    archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-                                    stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
-                                }
-                                post{
-                                    cleanup{
-                                        cleanWs(
-                                            deleteDirs: true,
-                                            patterns: [
-                                                [pattern: 'dist/', type: 'INCLUDE'],
-                                                [pattern: 'build/', type: 'INCLUDE'],
-                                                [pattern: 'venv/', type: 'INCLUDE'],
-                                            ]
-                                        )
+                                    stage('Test Apple Bundle'){
+                                        agent{
+                                            label 'mac && x86_64'
+                                        }
+                                        options{
+                                            skipDefaultCheckout true
+                                        }
+                                        steps{
+                                            unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                            testMacStandalone('dist/*.dmg')
+                                        }
                                     }
                                 }
                             }
                             stage('Mac Application Bundle M1'){
-                                agent{
-                                    label 'mac && python3 && arm64'
-                                }
                                 when{
                                     allOf{
                                         equals expected: true, actual: params['INCLUDE_MACOS-ARM64']
@@ -1010,24 +1034,43 @@ def call(){
                                     }
                                     beforeInput true
                                 }
-                                steps{
-                                    unstash 'PYTHON_PACKAGES'
-                                    script{
-                                        makeMacPackage()
+                                stages{
+                                    stage('Build Apple Bundle'){
+                                        agent{
+                                            label 'mac && python3 && arm64'
+                                        }
+                                        steps{
+                                            unstash 'PYTHON_PACKAGES'
+                                            script{
+                                                makeMacPackage()
+                                            }
+                                            archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                            stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
+                                        }
+                                        post{
+                                            cleanup{
+                                                cleanWs(
+                                                    deleteDirs: true,
+                                                    patterns: [
+                                                        [pattern: 'dist/', type: 'INCLUDE'],
+                                                        [pattern: 'build/', type: 'INCLUDE'],
+                                                        [pattern: 'venv/', type: 'INCLUDE'],
+                                                    ]
+                                                )
+                                            }
+                                        }
                                     }
-                                    archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-                                    stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
-                                }
-                                post{
-                                    cleanup{
-                                        cleanWs(
-                                            deleteDirs: true,
-                                            patterns: [
-                                                [pattern: 'dist/', type: 'INCLUDE'],
-                                                [pattern: 'build/', type: 'INCLUDE'],
-                                                [pattern: 'venv/', type: 'INCLUDE'],
-                                            ]
-                                        )
+                                    stage('Test Apple Bundle'){
+                                        agent{
+                                            label 'mac && arm64'
+                                        }
+                                        options{
+                                            skipDefaultCheckout true
+                                        }
+                                        steps{
+                                            unstash 'APPLE_APPLICATION_BUNDLE_M1'
+                                            testMacStandalone('dist/*.dmg')
+                                        }
                                     }
                                 }
                             }
@@ -1064,10 +1107,10 @@ def call(){
                                             unstash 'PYTHON_PACKAGES'
                                             script{
                                                 findFiles(glob: 'dist/*.whl').each{
-                                                    powershell(
+                                                    bat(
                                                         label: 'Create standalone windows version',
                                                         script: """python -m venv venv
-                                                                   venv\\Scripts\\python -m pip install --disable-pip-version-check uv
+                                                                   venv\\Scripts\\pip install uv
                                                                    powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -ExtraIndexUrl \$env:PIP_EXTRA_INDEX_URL
                                                                """
                                                     )
@@ -1132,7 +1175,7 @@ def call(){
                                             stage('Verify Installed'){
                                                 steps{
                                                     checkout scm
-                                                    powershell('./ci/jenkins/scripts/ensure_application_installed_property.ps1')
+                                                    bat('powershell  -File "./ci/jenkins/scripts/ensure_application_installed_property.ps1" -SpeedwagonExec "C:\\Program Files\\Speedwagon - UIUC\\Speedwagon!\\speedwagon.exe"')
                                                 }
                                             }
                                             stage('Uninstall'){
