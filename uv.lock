@@ -1460,7 +1460,7 @@ wheels = [
 
 [[package]]
 name = "speedwagon"
-version = "0.4.0b18"
+version = "0.4.0b21"
 source = { registry = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" }
 dependencies = [
     { name = "lxml" },
@@ -1469,9 +1469,9 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b18/speedwagon-0.4.0b18.tar.gz", hash = "sha256:0d941c8af11ff7cc9baa650095dc88985f25f0e766af9e2c6c97468d6eb07209" }
+sdist = { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b21/speedwagon-0.4.0b21.tar.gz", hash = "sha256:151010d19b298b142cd4258899b267201fc83958b0edc0922935555a3dd95c99" }
 wheels = [
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b18/speedwagon-0.4.0b18-py3-none-any.whl", hash = "sha256:47cb19ed640534d0a5d353bada8d68fb4715703ff5a4ead57f65fc7c649a4b7d" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b21/speedwagon-0.4.0b21-py3-none-any.whl", hash = "sha256:ce2801f62bc49520399c758a29bef99fb5186a6e0dab6be25124e40b8ae8c486" },
 ]
 
 [package.optional-dependencies]
