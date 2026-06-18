@@ -8,7 +8,7 @@ param (
 
 $APP_NAME="Speedwagon (UIUC Prescon Edition)"
 $BOOTSTRAP_SCRIPT="./contrib/speedwagon_bootstrap.py"
-$PACKAGE_SCRIPT_URL="https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.1.tar.gz"
+$PACKAGE_SCRIPT_URL="https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.2.tar.gz"
 
 
 function Build-Standalone{
