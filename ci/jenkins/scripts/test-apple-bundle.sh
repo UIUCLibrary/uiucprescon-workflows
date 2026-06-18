@@ -20,15 +20,32 @@ cleanup-mounted-dng(){
 
 test-speedwagon-contrib-installed(){
   local SPEEDWAGON_EXEC="$1"
-  local $SPEEDWAGON_STDERR
+  local SPEEDWAGON_STDERR_FILE
+  local SPEEDWAGON_STDOUT
+  SPEEDWAGON_STDERR_FILE=$(mktemp)
+  SPEEDWAGON_STDOUT=$("$SPEEDWAGON_EXEC" info --format=json 2> "SPEEDWAGON_STDERR_FILE")
 
-  SPEEDWAGON_STDERR=$(mktemp)
-  if "$SPEEDWAGON_EXEC" info --format=json 2> "$SPEEDWAGON_STDERR" | jq -e '.installed_packages | any(startswith("speedwagon-contrib"))' > /dev/null; then
-    rm "$SPEEDWAGON_STDERR"
+  if [ "$?" -ne 0 ]; then
+    cat "$SPEEDWAGON_STDERR_FILE"
+    rm "$SPEEDWAGON_STDERR_FILE"
+    return 1
+  fi
+  if echo "$SPEEDWAGON_STDOUT" | jq -e '.installed_packages | any(startswith("speedwagon-contrib"))' > /dev/null; then
+    rm "$SPEEDWAGON_STDERR_FILE"
     return 0
   else
-    cat "$SPEEDWAGON_STDERR"
-    rm "$SPEEDWAGON_STDERR"
+    echo ""
+    echo "--------------------------"
+    echo "| Standard Out            |"
+    echo "--------------------------"
+    echo "$SPEEDWAGON_STDOUT"
+    echo "--------------------------"
+    echo ""
+    echo "--------------------------"
+    echo "| Standard Error          |"
+    echo "--------------------------"
+    cat "$SPEEDWAGON_STDERR_FILE"
+    rm "$SPEEDWAGON_STDERR_FILE"
     return 1
   fi
 }

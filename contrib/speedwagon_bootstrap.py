@@ -33,11 +33,21 @@ def main():  # pragma: no cover
     parser = speedwagon.config.config.CliArgsSetter.get_arg_parser()
     args = parser.parse_args(sys.argv[1:])
     if args.command is not None:
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(logging.INFO)
-        speedwagon.startup.logger.addHandler(handler)
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.INFO)
+        stdout_handler.addFilter(lambda rec: rec.levelno < logging.WARNING)
+        speedwagon.startup.logger.addHandler(stdout_handler)
+
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(logging.WARNING)
+        speedwagon.startup.logger.addHandler(stderr_handler)
+
         speedwagon.startup.logger.setLevel(logging.INFO)
-        speedwagon.startup.run_command(command_name=args.command, args=args)
+        try:
+            speedwagon.startup.run_command(command_name=args.command, args=args)
+        except BrokenPipeError:
+            print("Broken pipe error here")
+            raise
         return
     app = speedwagon.startup.ApplicationLauncher()
     app.application_name = "Speedwagon: UIUC Prescon Edition"
