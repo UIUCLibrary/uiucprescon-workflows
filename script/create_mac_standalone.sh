@@ -6,7 +6,7 @@ scriptDir=$(dirname -- "$(readlink -f -- "$BASH_SOURCE")")
 project_root=$(realpath "$scriptDir/..")
 APP_NAME='Speedwagon (UIUC Prescon Edition)'
 BOOTSTRAP_SCRIPT="${project_root}/contrib/speedwagon_bootstrap.py"
-PACKAGE_SPEEDWAGON_SCRIPT_URL="https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.1.tar.gz"
+PACKAGE_SPEEDWAGON_SCRIPT_URL="https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.4.tar.gz"
 
 install_temporary_uv(){
     venvPath=$1
@@ -29,8 +29,8 @@ generate_release_with_uv(){
     local build_path
     build_path=$(mktemp -d)
 
-    $uv export ${python_version:+--python=$python_version} --no-hashes --format requirements-txt --extra gui --extra contrib --no-dev --no-emit-project > ${build_path}/requirements-gui.txt
-    $uv tool run --python=${python_version} --from package-speedwagon@${PACKAGE_SPEEDWAGON_SCRIPT_URL} package_speedwagon $wheel -r ${build_path}/requirements-gui.txt --app-name="${APP_NAME}" --app-bootstrap-script="${BOOTSTRAP_SCRIPT}" --hidden-import='speedwagon_contrib'
+    $uv export ${python_version:+--python=$python_version} --format pylock.toml --extra gui --extra contrib --no-dev --no-emit-project --output-file ${build_path}/pylock.toml
+    $uv tool run --python=${python_version} --from package-speedwagon@${PACKAGE_SPEEDWAGON_SCRIPT_URL} package_speedwagon $wheel -r ${build_path}/pylock.toml --app-name="${APP_NAME}" --app-bootstrap-script="${BOOTSTRAP_SCRIPT}" --hidden-import='speedwagon_contrib'
 
 }
 
