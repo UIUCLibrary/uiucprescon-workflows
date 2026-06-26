@@ -1102,16 +1102,20 @@ def call(){
                                         }
                                         environment{
                                             UV_CONFIG_FILE = createWindowUVConfig()
+                                            BUILD_DIR='c:\\build\\tmp'
                                         }
                                         steps{
                                             unstash 'PYTHON_PACKAGES'
+                                            // c:\build\tmp is used for the build directory to avoid running into the
+                                            // file paths being too long for WiX to handle and failing the build.
+                                            powershell(label: 'Ensuring build folder', script: 'New-Item -Path "${Env:BUILD_DIR}" -ItemType Directory -Force')
                                             script{
                                                 findFiles(glob: 'dist/*.whl').each{
                                                     bat(
                                                         label: 'Create standalone windows version',
                                                         script: """python -m venv venv
-                                                                   venv\\Scripts\\pip install uv
-                                                                   powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -ExtraIndexUrl \$env:PIP_EXTRA_INDEX_URL
+                                                                   venv\\Scripts\\pip install --disable-pip-version-check uv
+                                                                   powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -BuildPath %BUILD_DIR%
                                                                """
                                                     )
                                                 }
@@ -1120,7 +1124,23 @@ def call(){
                                             stash includes: 'dist/*.msi', name: 'STANDALONE_WINDOWS_X86_64_INSTALLER'
                                         }
                                         post{
+                                            always{
+                                                powershell(
+                                                    label: 'extracting WiX log file',
+                                                    script: '''New-Item -Path "${env:WORKSPACE}\\logs" -ItemType Directory -Force
+                                                               Get-ChildItem -Path "${env:BUILD_DIR}\\speedwagon_build\\package\\frozen" -Filter "wix.log" -Recurse | Copy-Item -Destination "${env.WORKSPACE}\\logs -Verbose"
+                                                            '''
+                                                    )
+                                                archiveArtifacts artifacts: 'logs/wix.log', allowEmptyArchive: true
+                                            }
                                             cleanup{
+                                                powershell(
+                                                    label: 'Cleaning up build path',
+                                                    script: '''if (Test-Path -Path ${env:BUILD_DIR}) {
+                                                                Remove-Item -Path ${env:BUILD_DIR} -Recurse -Force
+                                                               }
+                                                            '''
+                                                )
                                                 cleanWs(
                                                     deleteDirs: true,
                                                     patterns: [
