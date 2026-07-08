@@ -1493,7 +1493,7 @@ wheels = [
 
 [[package]]
 name = "speedwagon-uiucprescon"
-version = "0.3.2b8"
+version = "0.3.2.dev9"
 source = { editable = "." }
 dependencies = [
     { name = "hathivalidate" },
