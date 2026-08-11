@@ -1,3 +1,5 @@
+import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+
 def createChocolateyConfigFile(configJsonFile, installerPackage, url){
     def deployJsonMetadata = [
         "PackageVersion": readTOML( file: 'pyproject.toml')['project'].version,
@@ -917,331 +919,266 @@ def call(){
                                     }
                                 }
                             }
-                            stage('Testing Python Package'){
-                                when{
-                                    equals expected: true, actual: params.TEST_PACKAGES
-                                }
-                                stages{
-                                    stage('Twine Check'){
-                                        agent{
-                                            docker{
-                                                image 'ghcr.io/astral-sh/uv:debian'
-                                                label 'linux && docker'
-                                                args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e UV_TOOL_DIR=/tmp/uvtools -e UV_CACHE_DIR=/tmp/uvcache"
+                            stage('Building and Testing Packages and Applications'){
+                                parallel{
+                                    stage('Testing Python Package'){
+                                        when{
+                                            equals expected: true, actual: params.TEST_PACKAGES
+                                        }
+                                        stages{
+                                            stage('Twine Check'){
+                                                agent{
+                                                    docker{
+                                                        image 'ghcr.io/astral-sh/uv:debian'
+                                                        label 'linux && docker'
+                                                        args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e UV_TOOL_DIR=/tmp/uvtools -e UV_CACHE_DIR=/tmp/uvcache"
+                                                    }
+                                                }
+                                                environment{
+                                                    UV_PROJECT_ENVIRONMENT='./venv'
+                                                }
+                                                steps{
+                                                    catchError(buildResult: 'UNSTABLE', message: 'twine check found issues', stageResult: 'UNSTABLE') {
+                                                        unstash 'PYTHON_PACKAGES'
+                                                        sh(
+                                                            label: 'Checking with twine check',
+                                                            script: 'uv run --frozen --only-group deploy twine check --strict  dist/*'
+                                                        )
+                                                    }
+                                                }
                                             }
-                                        }
-                                        environment{
-                                            UV_PROJECT_ENVIRONMENT='./venv'
-                                        }
-                                        steps{
-                                            catchError(buildResult: 'UNSTABLE', message: 'twine check found issues', stageResult: 'UNSTABLE') {
-                                                unstash 'PYTHON_PACKAGES'
-                                                sh(
-                                                    label: 'Checking with twine check',
-                                                    script: 'uv run --frozen --only-group deploy twine check --strict  dist/*'
-                                                )
-                                            }
-                                        }
-                                    }
-                                    stage('Package Matrix'){
-                                        steps{
-                                            customMatrix(
-                                                axes: [
-                                                    [
-                                                        name: 'PYTHON_VERSION',
-                                                        values: config['supporting']['pythonVersions']
-                                                    ],
-                                                    [
-                                                        name: 'OS',
-                                                        values: config['supporting']['os']
-                                                    ],
-                                                    [
-                                                        name: 'ARCHITECTURE',
-                                                        values: ['x86_64', 'arm64']
-                                                    ],
-                                                    [
-                                                        name: 'PACKAGE_TYPE',
-                                                        values: ['wheel', 'sdist'],
-                                                    ]
-                                                ],
-                                                excludes: config['supporting']['exclusions'],
-                                                when: {entry -> "INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase() && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]},
-                                                stages: [
-                                                    { entry ->
-                                                        stage('Test Package') {
-                                                            retry(3){
-                                                                node("${entry.OS} && ${entry.ARCHITECTURE} ${['linux', 'windows'].contains(entry.OS) ? '&& docker': ''}"){
-                                                                    try{
-                                                                        checkout scm
-                                                                        unstash 'PYTHON_PACKAGES'
-                                                                        testPackage(entry)
-                                                                    } finally{
-                                                                        if(isUnix()){
-                                                                            sh "${tool(name: 'Default', type: 'git')} clean -dfx"
-                                                                        } else {
-                                                                            bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                            stage('Package Matrix'){
+                                                steps{
+                                                    customMatrix(
+                                                        axes: [
+                                                            [
+                                                                name: 'PYTHON_VERSION',
+                                                                values: config['supporting']['pythonVersions']
+                                                            ],
+                                                            [
+                                                                name: 'OS',
+                                                                values: config['supporting']['os']
+                                                            ],
+                                                            [
+                                                                name: 'ARCHITECTURE',
+                                                                values: ['x86_64', 'arm64']
+                                                            ],
+                                                            [
+                                                                name: 'PACKAGE_TYPE',
+                                                                values: ['wheel', 'sdist'],
+                                                            ]
+                                                        ],
+                                                        excludes: config['supporting']['exclusions'],
+                                                        when: {entry -> "INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase() && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]},
+                                                        stages: [
+                                                            { entry ->
+                                                                stage('Test Package') {
+                                                                    retry(3){
+                                                                        node("${entry.OS} && ${entry.ARCHITECTURE} ${['linux', 'windows'].contains(entry.OS) ? '&& docker': ''}"){
+                                                                            try{
+                                                                                checkout scm
+                                                                                unstash 'PYTHON_PACKAGES'
+                                                                                testPackage(entry)
+                                                                            } finally{
+                                                                                if(isUnix()){
+                                                                                    sh "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                                } else {
+                                                                                    bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                                }
+                                                                            }
                                                                         }
                                                                     }
                                                                 }
                                                             }
+                                                        ]
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    stage('End-user packages'){
+                                        steps{
+                                            script{
+                                                parallel(
+                                                    'Mac Application Bundle x86_64':{
+                                                        def shouldBuild = (params['INCLUDE_MACOS-X86_64'] && params.PACKAGE_MAC_OS_STANDALONE_DMG && nodesByLabel('mac && python3 && x86_64').size() > 0)
+                                                        if(!shouldBuild){
+                                                            Utils.markStageSkippedForConditional('Mac Application Bundle x86_64')
+                                                        }
+                                                        stage('Build Apple Bundle'){
+                                                            if(shouldBuild){
+                                                                node('mac && python3 && x86_64'){
+                                                                    checkout scm
+                                                                    try{
+                                                                        unstash 'PYTHON_PACKAGES'
+                                                                        makeMacPackage(config['standalone']['pythonVersion'])
+                                                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                                                    } finally{
+                                                                        sh "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                Utils.markStageSkippedForConditional('Build Apple Bundle')
+                                                            }
+                                                        }
+                                                        stage('Test Apple Bundle'){
+                                                            if(shouldBuild){
+                                                                node('mac && x86_64'){
+                                                                    unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
+                                                                    testMacStandalone('dist/*.dmg')
+                                                                }
+                                                            } else {
+                                                                Utils.markStageSkippedForConditional('Test Apple Bundle')
+                                                            }
+                                                        }
+                                                    },
+                                                    'Mac Application Bundle M1':{
+                                                        def shouldBuild = (params['INCLUDE_MACOS-ARM64'] && params.PACKAGE_MAC_OS_STANDALONE_DMG && nodesByLabel('mac && python3 && arm64').size() > 0)
+                                                        if(!shouldBuild){
+                                                            Utils.markStageSkippedForConditional('Mac Application Bundle M1')
+                                                        }
+                                                        stage('Build Apple Bundle'){
+                                                            if(shouldBuild){
+                                                                node('mac && python3 && arm64'){
+                                                                    checkout scm
+                                                                    try{
+                                                                        unstash 'PYTHON_PACKAGES'
+                                                                        makeMacPackage(config['standalone']['pythonVersion'])
+                                                                        archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
+                                                                        stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
+                                                                    } finally{
+                                                                        sh "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                Utils.markStageSkippedForConditional('Build Apple Bundle')
+                                                            }
+                                                        }
+                                                        stage('Test Apple Bundle'){
+                                                            if(shouldBuild){
+                                                                node('mac && arm64'){
+                                                                    unstash 'APPLE_APPLICATION_BUNDLE_M1'
+                                                                    testMacStandalone('dist/*.dmg')
+                                                                }
+                                                            } else {
+                                                                Utils.markStageSkippedForConditional('Test Apple Bundle')
+                                                            }
+                                                        }
+                                                    },
+                                                    'Windows Installer for x86_64':{
+                                                        def shouldBuild = params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
+                                                        if(!shouldBuild){
+                                                            Utils.markStageSkippedForConditional('Windows Installer for x86_64')
+                                                        }
+                                                        withEnv(['VC_RUNTIME_INSTALLER_LOCATION=c:\\msvc_runtime']){
+                                                            stage('Create .msi Installer'){
+                                                                if(shouldBuild){
+                                                                    node('windows && x86_64 && docker'){
+                                                                        checkout scm
+                                                                        try{
+                                                                            docker.image('python').inside(" \
+                                                                                --label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" \
+                                                                                --mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                                                                                -e UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                                                                                --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                                                                                -e PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                                                                                --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                                                                                -e UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                                                                                -e UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools \
+                                                                                -e BUILD_DIR=c:\\build\\tmp \
+                                                                                --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
+                                                                            "
+                                                                            ){
+                                                                                try{
+                                                                                    withEnv(["UV_CONFIG_FILE=${createWindowUVConfig()}"]){
+                                                                                        unstash 'PYTHON_PACKAGES'
+                                                                                        // c:\build\tmp is used for the build directory to avoid running into the
+                                                                                        // file paths being too long for WiX to handle and failing the build.
+                                                                                        powershell(label: 'Ensuring build folder', script: 'New-Item -Path "${Env:BUILD_DIR}" -ItemType Directory -Force')
+                                                                                        findFiles(glob: 'dist/*.whl').each{
+                                                                                            bat(
+                                                                                                label: 'Create standalone windows version',
+                                                                                                script: """python -m venv venv
+                                                                                                           venv\\Scripts\\pip install --disable-pip-version-check uv
+                                                                                                           powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -BuildPath %BUILD_DIR% -PythonVersion ${config['standalone']['pythonVersion']}
+                                                                                                       """
+                                                                                            )
+                                                                                        }
+                                                                                        archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
+                                                                                        stash includes: 'dist/*.msi', name: 'STANDALONE_WINDOWS_X86_64_INSTALLER'
+                                                                                    }
+                                                                                } finally{
+                                                                                    powershell(
+                                                                                        label: 'extracting WiX log file',
+                                                                                        script: '''New-Item -Path "${env:WORKSPACE}\\logs" -ItemType Directory -Force
+                                                                                                   Get-ChildItem -Path "${env:BUILD_DIR}\\speedwagon_build\\package\\frozen" -Filter "wix.log" -Recurse | Copy-Item -Destination "${env.WORKSPACE}\\logs -Verbose"
+                                                                                                '''
+                                                                                        )
+                                                                                    archiveArtifacts artifacts: 'logs/wix.log', allowEmptyArchive: true
+                                                                                }
+                                                                            }
+                                                                        } finally{
+                                                                            bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                        }
+                                                                    }
+                                                                } else {
+                                                                    Utils.markStageSkippedForConditional('Create .msi Installer')
+                                                                }
+                                                            }
+                                                            stage('Test .msi Installer'){
+                                                                if(shouldBuild){
+                                                                    node('windows && x86_64 && docker'){
+                                                                        checkout scm
+                                                                        try{
+                                                                            docker.image('mcr.microsoft.com/windows/servercore:ltsc2022').inside("--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" -u ContainerAdministrator"){
+                                                                                stage('Install msi file'){
+                                                                                    try{
+                                                                                        unstash 'STANDALONE_WINDOWS_X86_64_INSTALLER'
+                                                                                        withEnv(["MSI_INSTALLER=${getMsiInstallerPath()}"]){
+                                                                                            powershell(
+                                                                                                label: 'Installing msi file',
+                                                                                                script: '''[void](New-Item -ItemType Directory -Force -Path logs)
+                                                                                                           Write-Host "Installing $Env:MSI_INSTALLER"
+                                                                                                           msiexec /i $Env:MSI_INSTALLER /qn /norestart /L*v! logs\\msiexec.log
+                                                                                                           '''
+                                                                                            )
+                                                                                            powershell(
+                                                                                                label: 'Show installed applications',
+                                                                                                script: 'Get-WmiObject -Class Win32_Product'
+                                                                                            )
+                                                                                        }
+                                                                                    } finally{
+                                                                                        archiveArtifacts artifacts: 'logs/msiexec.log'
+                                                                                    }
+                                                                                }
+                                                                                stage('Verify Installed'){
+                                                                                    bat('powershell  -File "./ci/jenkins/scripts/ensure_application_installed_property.ps1" -SpeedwagonExec "C:\\Program Files\\Speedwagon - UIUC\\Speedwagon!\\speedwagon.exe"')
+                                                                                }
+                                                                                stage('Uninstall'){
+                                                                                    withEnv(["APP_NAME=Speedwagon (UIUC Prescon Edition)"]){
+                                                                                        powershell(
+                                                                                            label: 'Uninstall',
+                                                                                            script: '''$app = Get-WmiObject -Class Win32_Product -Filter "Name = \"\"$Env:APP_NAME\"\""
+                                                                                                       Write-Host "Uninstalling $app"
+                                                                                                       $app.Uninstall()
+                                                                                                       Get-WmiObject -Class Win32_Product
+                                                                                                    '''
+                                                                                       )
+                                                                                       powershell('./ci/jenkins/scripts/ensure_application_uninstalled.ps1 --StartMenuShortCutRemoved')
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        } finally{
+                                                                            bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                        }
+                                                                    }
+                                                                } else {
+                                                                    Utils.markStageSkippedForConditional('Test .msi Installer')
+                                                                }
+                                                            }
                                                         }
                                                     }
-                                                ]
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    stage('End-user packages'){
-                        parallel{
-                            stage('Mac Application Bundle x86_64'){
-                                when{
-                                    allOf{
-                                        equals expected: true, actual: params['INCLUDE_MACOS-X86_64']
-                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-                                        expression {return nodesByLabel('mac && python3 && x86_64').size() > 0}
-                                    }
-                                    beforeInput true
-                                }
-                                stages{
-                                    stage('Build Apple Bundle'){
-                                        agent{
-                                            label 'mac && python3 && x86_64'
-                                        }
-                                        steps{
-                                            unstash 'PYTHON_PACKAGES'
-                                            script{
-                                                makeMacPackage(config['standalone']['pythonVersion'])
-                                            }
-                                            archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-                                            stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
-                                        }
-                                        post{
-                                            cleanup{
-                                                cleanWs(
-                                                    deleteDirs: true,
-                                                    patterns: [
-                                                        [pattern: 'dist/', type: 'INCLUDE'],
-                                                        [pattern: 'build/', type: 'INCLUDE'],
-                                                        [pattern: 'venv/', type: 'INCLUDE'],
-                                                    ]
-                                                )
-                                            }
-                                        }
-                                    }
-                                    stage('Test Apple Bundle'){
-                                        agent{
-                                            label 'mac && x86_64'
-                                        }
-                                        options{
-                                            skipDefaultCheckout true
-                                        }
-                                        steps{
-                                            unstash 'APPLE_APPLICATION_BUNDLE_X86_64'
-                                            testMacStandalone('dist/*.dmg')
-                                        }
-                                    }
-                                }
-                            }
-                            stage('Mac Application Bundle M1'){
-                                when{
-                                    allOf{
-                                        equals expected: true, actual: params['INCLUDE_MACOS-ARM64']
-                                        equals expected: true, actual: params.PACKAGE_MAC_OS_STANDALONE_DMG
-                                        expression {return nodesByLabel('mac && python3 && arm64').size() > 0}
-                                    }
-                                    beforeInput true
-                                }
-                                stages{
-                                    stage('Build Apple Bundle'){
-                                        agent{
-                                            label 'mac && python3 && arm64'
-                                        }
-                                        steps{
-                                            unstash 'PYTHON_PACKAGES'
-                                            script{
-                                                makeMacPackage(config['standalone']['pythonVersion'])
-                                            }
-                                            archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
-                                            stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
-                                        }
-                                        post{
-                                            cleanup{
-                                                cleanWs(
-                                                    deleteDirs: true,
-                                                    patterns: [
-                                                        [pattern: 'dist/', type: 'INCLUDE'],
-                                                        [pattern: 'build/', type: 'INCLUDE'],
-                                                        [pattern: 'venv/', type: 'INCLUDE'],
-                                                    ]
-                                                )
-                                            }
-                                        }
-                                    }
-                                    stage('Test Apple Bundle'){
-                                        agent{
-                                            label 'mac && arm64'
-                                        }
-                                        options{
-                                            skipDefaultCheckout true
-                                        }
-                                        steps{
-                                            unstash 'APPLE_APPLICATION_BUNDLE_M1'
-                                            testMacStandalone('dist/*.dmg')
-                                        }
-                                    }
-                                }
-                            }
-                            stage('Windows Installer for x86_64'){
-                                when{
-                                    equals expected: true, actual: params.PACKAGE_STANDALONE_WINDOWS_INSTALLER
-                                }
-                                environment{
-                                  VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime'
-                                }
-                                stages{
-                                    stage('Create .msi Installer'){
-                                        agent {
-                                           docker {
-                                               image 'python'
-                                               label 'windows && x86_64 && docker'
-                                               args " \
-                                                    --label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" \
-                                                    --mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
-                                                    -e UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
-                                                    --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
-                                                    -e PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
-                                                    --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
-                                                    -e UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
-                                                    -e UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools \
-                                                    --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
-                                                    "
-                                           }
-                                        }
-                                        environment{
-                                            UV_CONFIG_FILE = createWindowUVConfig()
-                                            BUILD_DIR='c:\\build\\tmp'
-                                        }
-                                        steps{
-                                            unstash 'PYTHON_PACKAGES'
-                                            // c:\build\tmp is used for the build directory to avoid running into the
-                                            // file paths being too long for WiX to handle and failing the build.
-                                            powershell(label: 'Ensuring build folder', script: 'New-Item -Path "${Env:BUILD_DIR}" -ItemType Directory -Force')
-                                            script{
-                                                findFiles(glob: 'dist/*.whl').each{
-                                                    bat(
-                                                        label: 'Create standalone windows version',
-                                                        script: """python -m venv venv
-                                                                   venv\\Scripts\\pip install --disable-pip-version-check uv
-                                                                   powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -BuildPath %BUILD_DIR% -PythonVersion ${config['standalone']['pythonVersion']}
-                                                               """
-                                                    )
-                                                }
-                                            }
-                                            archiveArtifacts artifacts: 'dist/*.msi', fingerprint: true
-                                            stash includes: 'dist/*.msi', name: 'STANDALONE_WINDOWS_X86_64_INSTALLER'
-                                        }
-                                        post{
-                                            always{
-                                                powershell(
-                                                    label: 'extracting WiX log file',
-                                                    script: '''New-Item -Path "${env:WORKSPACE}\\logs" -ItemType Directory -Force
-                                                               Get-ChildItem -Path "${env:BUILD_DIR}\\speedwagon_build\\package\\frozen" -Filter "wix.log" -Recurse | Copy-Item -Destination "${env.WORKSPACE}\\logs -Verbose"
-                                                            '''
-                                                    )
-                                                archiveArtifacts artifacts: 'logs/wix.log', allowEmptyArchive: true
-                                            }
-                                            cleanup{
-                                                powershell(
-                                                    label: 'Cleaning up build path',
-                                                    script: '''if (Test-Path -Path ${env:BUILD_DIR}) {
-                                                                Remove-Item -Path ${env:BUILD_DIR} -Recurse -Force
-                                                               }
-                                                            '''
-                                                )
-                                                cleanWs(
-                                                    deleteDirs: true,
-                                                    patterns: [
-                                                        [pattern: 'build/', type: 'INCLUDE'],
-                                                        [pattern: 'dist/', type: 'INCLUDE'],
-                                                        [pattern: 'venv/', type: 'INCLUDE'],
-                                                    ]
-                                                )
-                                            }
-                                        }
-                                    }
-                                    stage('Test .msi Installer'){
-                                        agent {
-                                            docker {
-                                                image 'mcr.microsoft.com/windows/servercore:ltsc2022'
-                                                label 'windows && docker && x86_64'
-                                                args "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" -u ContainerAdministrator"
-                                            }
-                                        }
-                                        options {
-                                            skipDefaultCheckout true
-                                        }
-                                        stages{
-                                            stage('Checkout Installer'){
-                                                steps{
-                                                    unstash 'STANDALONE_WINDOWS_X86_64_INSTALLER'
-                                                }
-                                            }
-                                            stage('Install msi file'){
-                                                environment {
-                                                    MSI_INSTALLER = getMsiInstallerPath()
-                                                }
-                                                steps{
-                                                    powershell(
-                                                        label: 'Installing msi file',
-                                                        script: '''[void](New-Item -ItemType Directory -Force -Path logs)
-                                                                   Write-Host "Installing $Env:MSI_INSTALLER"
-                                                                   msiexec /i $Env:MSI_INSTALLER /qn /norestart /L*v! logs\\msiexec.log
-                                                                   '''
-                                                    )
-                                                    powershell(
-                                                        label: 'Show installed applications',
-                                                        script: 'Get-WmiObject -Class Win32_Product'
-                                                    )
-                                                }
-                                                post{
-                                                    always{
-                                                        archiveArtifacts artifacts: 'logs/msiexec.log'
-                                                    }
-                                                }
-                                            }
-                                            stage('Verify Installed'){
-                                                steps{
-                                                    checkout scm
-                                                    bat('powershell  -File "./ci/jenkins/scripts/ensure_application_installed_property.ps1" -SpeedwagonExec "C:\\Program Files\\Speedwagon - UIUC\\Speedwagon!\\speedwagon.exe"')
-                                                }
-                                            }
-                                            stage('Uninstall'){
-                                                environment {
-                                                    APP_NAME="Speedwagon (UIUC Prescon Edition)"
-                                                }
-                                                steps{
-                                                    powershell(
-                                                        label: 'Uninstall',
-                                                        script: '''$app = Get-WmiObject -Class Win32_Product -Filter "Name = \"\"$Env:APP_NAME\"\""
-                                                                   Write-Host "Uninstalling $app"
-                                                                   $app.Uninstall()
-                                                                   Get-WmiObject -Class Win32_Product
-                                                                '''
-                                                   )
-                                                   powershell('./ci/jenkins/scripts/ensure_application_uninstalled.ps1 --StartMenuShortCutRemoved')
-                                                }
-                                            }
-                                        }
-                                        post{
-                                            cleanup{
-                                                cleanWs(
-                                                    deleteDirs: true,
-                                                    patterns: [
-                                                        [pattern: 'dist/', type: 'INCLUDE'],
-                                                    ]
                                                 )
                                             }
                                         }
