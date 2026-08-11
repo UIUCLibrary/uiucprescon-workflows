@@ -62,7 +62,7 @@ def testPackage(entry){
             .inside(
                 "--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" " + (
                     isUnix() ?
-                        '--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.local/share:exec --tmpfs /.local/bin:exec'
+                        '--mount source=python-tmp-uiucpreson_workflows,target=/tmp --tmpfs /.local/share:exec --tmpfs /.local/bin:exec -e PATH=\"/.local/bin:\$PATH'
                     :
                         '--mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
                          --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
@@ -78,7 +78,7 @@ def testPackage(entry){
                     'UV_CACHE_DIR=/tmp/uvcache',
                     "UV_CONFIG_FILE=${createUnixUvConfig()}",
                 ]){
-                    sh "uv python install cpython-${entry.PYTHON_VERSION}"
+                    sh(label: 'Installing required Python version if not already installed', script: "uv python find cpython-${entry.PYTHON_VERSION} --quiet 2>/dev/null || uv python install cpython-${entry.PYTHON_VERSION}")
                     def attempt = 0
                     retry(2){
                         withEnv([(attempt == 0) ? "UV_OFFLINE=1" : 'UV_OFFLINE=0']){
@@ -104,7 +104,7 @@ def testPackage(entry){
                        .\\venv\\Scripts\\pip install --disable-pip-version-check uv
                        .\\venv\\Scripts\\uv python update-shell
                     '''
-                    bat ".\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}"
+                    bat(label: 'Installing required Python version if not already installed', script: ".\\venv\\Scripts\\uv python find cpython-${entry.PYTHON_VERSION} --quiet 2>nul || .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}")
                     def attempt = 0
                     retry(2){
                         withEnv([(attempt == 0) ? "UV_OFFLINE=1" : 'UV_OFFLINE=0']){
@@ -148,7 +148,7 @@ def testPackage(entry){
                        .\\venv\\Scripts\\pip install --disable-pip-version-check uv
                        .\\venv\\Scripts\\uv python update-shell
                     '''
-                bat ".\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}"
+                bat(label: 'Installing required Python version if not already installed', script: ".\\venv\\Scripts\\uv python find cpython-${entry.PYTHON_VERSION} --quiet 2>nul || .\\venv\\Scripts\\uv python install cpython-${entry.PYTHON_VERSION}")
                 def attempt = 0
                 retry(2){
                     withEnv([(attempt == 0) ? 'UV_OFFLINE=1' : 'UV_OFFLINE=0']){
@@ -176,6 +176,7 @@ def get_sonarqube_unresolved_issues(report_task_file){
 
 def installMSVCRuntime(cacheLocation){
     def cachedFile = "${cacheLocation}\\vc_redist.x64.exe".replaceAll(/\\\\+/, '\\\\')
+
     withEnv(
         [
             "CACHED_FILE=${cachedFile}",
@@ -749,14 +750,13 @@ def call(){
                                                             try{
                                                                 try{
                                                                     withEnv(["UV_CONFIG_FILE=${createUnixUvConfig()}"]){
-                                                                        image.inside("--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_TOOL_DIR=/tmp/uvtools -e UV_PYTHON_CACHE_DIR=/tmp/uvpython -e UV_CACHE_DIR=/tmp/uvcache --tmpfs /.local/share:exec --tmpfs /.local/bin:exec"){
+                                                                        image.inside("--label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" --mount source=python-tmp-uiucpreson_workflows,target=/tmp -e PIP_CACHE_DIR=/tmp/pipcache -e UV_TOOL_DIR=/tmp/uvtools -e UV_PYTHON_CACHE_DIR=/tmp/uvpython -e UV_CACHE_DIR=/tmp/uvcache --tmpfs /.local/share:exec --tmpfs /.local/bin:exec -e PATH=\"/.local/bin:\$PATH"){
+                                                                            sh(label: 'Installing required Python version if not already installed', script: "uv python find cpython-${version} --quiet 2>/dev/null || uv python install cpython-${version}")
                                                                             retry(retryTimes){
                                                                                 try{
-                                                                                    sh( label: 'Running Tox',
-                                                                                        script: """uv python install cpython-${version}
-                                                                                                   uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -e ${toxEnv}
-                                                                                                """
-                                                                                        )
+                                                                                    sh(label: 'Running Tox',
+                                                                                       script: "uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -e ${toxEnv}"
+                                                                                       )
                                                                                 } catch (e){
                                                                                     cleanWs(
                                                                                         patterns: [
@@ -825,6 +825,10 @@ def call(){
                                                                                 "
                                                                             ){
                                                                             installMSVCRuntime(env.VC_RUNTIME_INSTALLER_LOCATION)
+                                                                            bat '''python -m venv venv
+                                                                                   .\\venv\\Scripts\\pip install --disable-pip-version-check uv
+                                                                                   .\\venv\\Scripts\\uv python update-shell
+                                                                                '''
                                                                             retry(3){
                                                                                 withEnv([
                                                                                     "UV_CONFIG_FILE=${createWindowUVConfig()}",
@@ -832,8 +836,8 @@ def call(){
                                                                                 ]){
                                                                                     try{
                                                                                         bat(label: 'Running Tox',
-                                                                                            script: '''python -m venv venv && venv\\Scripts\\pip install --disable-pip-version-check uv
-                                                                                                       venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
+                                                                                            script: '''
+                                                                                                       venv\\Scripts\\uv python find cpython-%PYTHON_VERSION% --quiet 2>nul || venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
                                                                                                        venv\\Scripts\\uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -vv
                                                                                                        rmdir /s/q venv
                                                                                                     '''
