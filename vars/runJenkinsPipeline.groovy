@@ -7,9 +7,9 @@ def createChocolateyConfigFile(configJsonFile, installerPackage, url){
     writeJSON( json: deployJsonMetadata, file: configJsonFile, pretty: 2)
 }
 
-def makeMacPackage(){
+def makeMacPackage(pythonVersion){
     findFiles(glob: 'dist/*.whl').each{ wheel ->
-        sh "sh script/create_mac_standalone.sh --python-version=3.13+gil ${wheel.path}"
+        sh "sh script/create_mac_standalone.sh --python-version=${pythonVersion} ${wheel.path}"
     }
 }
 
@@ -394,6 +394,36 @@ def createUnixUvConfig(){
     return sh(label: 'Setting up uv.toml config file', script: 'sh ci/jenkins/scripts/create_uv_config.sh $UV_INDEX_URL $UV_EXTRA_INDEX_URL', returnStdout: true).trim()
 }
 
+@NonCPS
+def getExclusions(config){
+    (config['supporting']['exclusions'] ?: []).collect{ exclusion ->
+        return exclusion.collect{ component ->
+            return ["name": component['name'], "values": component['values']]
+        }
+    }
+}
+
+def getConfig(){
+    def configData = [:]
+    node(){
+        checkout scm
+        def configID = 'speedwagon_uiucprescon_pipeline_config'
+        def defaultConfigFile = 'ci/jenkins/jenkins_config.json'
+        try{
+            configFileProvider([configFile(fileId: configID, variable: 'config_file')]) {
+                echo "Using configuration from: \"$configID\""
+                configData = readJSON( file: config_file)
+            }
+        } catch (e){
+            echo "Using default configuration in ${defaultConfigFile}. To override, create a new config file in Jenkins with id: \"${configID}\""
+            configData = readJSON( file: defaultConfigFile)
+        }
+    }
+    configData['supporting']['exclusions'] = getExclusions(configData)
+    return configData
+}
+
+
 def call(){
     library(
         identifier: 'JenkinsPythonHelperLibrary@2024.12.0',
@@ -404,6 +434,7 @@ def call(){
             ]
         )
     )
+    def config = getConfig()
     pipeline {
         agent none
         parameters {
@@ -440,7 +471,7 @@ def call(){
                     retry(conditions: [agent()], count: 2)
                 }
                 environment{
-                    UV_PYTHON = '3.11'
+                    UV_PYTHON = "${config['default_python_version']}"
                     UV_CONFIG_FILE=createUnixUvConfig()
 //                     UV_PROJECT_ENVIRONMENT='./venv'
                 }
@@ -501,7 +532,7 @@ def call(){
                             }
                         }
                         environment{
-                            UV_PYTHON='3.11'
+                            UV_PYTHON = "${config['default_python_version']}"
                             QT_QPA_PLATFORM='offscreen'
                             UV_CONFIG_FILE=createUnixUvConfig()
                         }
@@ -918,11 +949,11 @@ def call(){
                                                 axes: [
                                                     [
                                                         name: 'PYTHON_VERSION',
-                                                        values: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.14t']
+                                                        values: config['supporting']['pythonVersions']
                                                     ],
                                                     [
                                                         name: 'OS',
-                                                        values: ['linux','macos','windows']
+                                                        values: config['supporting']['os']
                                                     ],
                                                     [
                                                         name: 'ARCHITECTURE',
@@ -933,18 +964,7 @@ def call(){
                                                         values: ['wheel', 'sdist'],
                                                     ]
                                                 ],
-                                                excludes: [
-                                                    [
-                                                        [
-                                                            name: 'OS',
-                                                            values: 'windows'
-                                                        ],
-                                                        [
-                                                            name: 'ARCHITECTURE',
-                                                            values: 'arm64',
-                                                        ]
-                                                    ]
-                                                ],
+                                                excludes: config['supporting']['exclusions'],
                                                 when: {entry -> "INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase() && params["INCLUDE_${entry.OS}-${entry.ARCHITECTURE}".toUpperCase()]},
                                                 stages: [
                                                     { entry ->
@@ -993,7 +1013,7 @@ def call(){
                                         steps{
                                             unstash 'PYTHON_PACKAGES'
                                             script{
-                                                makeMacPackage()
+                                                makeMacPackage(config['standalone']['pythonVersion'])
                                             }
                                             archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
                                             stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_X86_64'
@@ -1042,7 +1062,7 @@ def call(){
                                         steps{
                                             unstash 'PYTHON_PACKAGES'
                                             script{
-                                                makeMacPackage()
+                                                makeMacPackage(config['standalone']['pythonVersion'])
                                             }
                                             archiveArtifacts artifacts: 'dist/*.dmg', fingerprint: true
                                             stash includes: 'dist/*.dmg', name: 'APPLE_APPLICATION_BUNDLE_M1'
@@ -1115,7 +1135,7 @@ def call(){
                                                         label: 'Create standalone windows version',
                                                         script: """python -m venv venv
                                                                    venv\\Scripts\\pip install --disable-pip-version-check uv
-                                                                   powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -BuildPath %BUILD_DIR%
+                                                                   powershell script/create_windows_standalone.ps1 ${it.path} -uvExec venv\\Scripts\\uv -BuildPath %BUILD_DIR% -PythonVersion ${config['standalone']['pythonVersion']}
                                                                """
                                                     )
                                                 }
