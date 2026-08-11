@@ -176,11 +176,11 @@ def get_sonarqube_unresolved_issues(report_task_file){
 
 def installMSVCRuntime(cacheLocation){
     def cachedFile = "${cacheLocation}\\vc_redist.x64.exe".replaceAll(/\\\\+/, '\\\\')
-
+    def downloadUrl = readFile('ci/docker/windows/vc_redist.url')
     withEnv(
         [
             "CACHED_FILE=${cachedFile}",
-            "RUNTIME_DOWNLOAD_URL=https://aka.ms/vs/17/release/vc_redist.x64.exe"
+            "RUNTIME_DOWNLOAD_URL=${downloadUrl}"
         ]
     ){
         lock("${cachedFile}-${env.NODE_NAME}"){
