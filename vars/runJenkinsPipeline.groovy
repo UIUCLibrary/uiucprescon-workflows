@@ -99,7 +99,7 @@ def testPackage(entry){
                     "UV_CONFIG_FILE=${createWindowUVConfig()}",
                     "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
                 ]){
-                    installMSVCRuntime('c:\\msvc_runtime\\')
+                    installMSVCRuntime('.\\msvc_runtime\\')
                     bat '''python -m venv venv
                        .\\venv\\Scripts\\pip install --disable-pip-version-check uv
                        .\\venv\\Scripts\\uv python update-shell
@@ -176,26 +176,44 @@ def get_sonarqube_unresolved_issues(report_task_file){
 
 def installMSVCRuntime(cacheLocation){
     def cachedFile = "${cacheLocation}\\vc_redist.x64.exe".replaceAll(/\\\\+/, '\\\\')
-    def downloadUrl = readFile('ci/docker/windows/vc_redist.url')
     withEnv(
         [
             "CACHED_FILE=${cachedFile}",
-            "RUNTIME_DOWNLOAD_URL=${downloadUrl}"
+            "CACHED_FILE_OUTPUT_PATH=${cacheLocation}",
         ]
     ){
-        lock("${cachedFile}-${env.NODE_NAME}"){
-            powershell(
-                label: 'Ensuring vc_redist runtime installer is available',
-                script: '''if ([System.IO.File]::Exists("$Env:CACHED_FILE"))
-                           {
-                                Write-Host 'Found installer'
-                           } else {
-                                Write-Host 'No installer found'
-                                Write-Host 'Downloading runtime'
-                                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;Invoke-WebRequest "$Env:RUNTIME_DOWNLOAD_URL" -OutFile "$Env:CACHED_FILE"
-                           }
-                        '''
-            )
+        lock("vc_redist-${env.JOB_NAME}"){
+            cache(
+                caches: [
+                    arbitraryFileCache(
+                        cacheName: 'vc_redist',
+                        cacheValidityDecidingFile: 'ci/docker/windows/vc_redist.url',
+                        compressionMethod: 'TARGZ_BEST_SPEED',
+                        includes: '**/*.exe',
+                        path: cacheLocation
+                    )
+                ],
+                maxCacheSize: 40
+            ) {
+                if(!fileExists(cachedFile)) {
+                    def downloadUrl = readFile('ci/docker/windows/vc_redist.url')
+                    withEnv(["RUNTIME_DOWNLOAD_URL=${downloadUrl}"]){
+                        powershell(
+                            label: 'Ensuring vc_redist runtime installer is available',
+                            script: '''if ([System.IO.File]::Exists("$Env:CACHED_FILE"))
+                                       {
+                                            Write-Host 'Found installer'
+                                       } else {
+                                            Write-Host 'No installer found'
+                                            Write-Host 'Downloading runtime'
+                                            New-Item -ItemType Directory -Force -Path "${Env:CACHED_FILE_OUTPUT_PATH}"
+                                            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;Invoke-WebRequest "$Env:RUNTIME_DOWNLOAD_URL" -OutFile "$Env:CACHED_FILE"
+                                       }
+                                    '''
+                        )
+                    }
+                }
+            }
         }
         powershell(label: 'Install VC Runtime', script: 'Start-Process -filepath "$Env:CACHED_FILE" -ArgumentList "/install", "/passive", "/norestart" -Passthru | Wait-Process;')
     }
@@ -791,7 +809,7 @@ def call(){
                                     expression {return nodesByLabel('windows && docker && x86').size() > 0}
                                 }
                                 environment{
-                                    VC_RUNTIME_INSTALLER_LOCATION='c:\\msvc_runtime'
+                                    VC_RUNTIME_INSTALLER_LOCATION='.\\msvc_runtime'
                                 }
                                 steps{
                                     script{
@@ -816,7 +834,6 @@ def call(){
                                                                                 --label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" \
                                                                                 --mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
                                                                                 -e UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
-                                                                                --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
                                                                                 --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
                                                                                 -e PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
                                                                                 --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
@@ -1075,7 +1092,7 @@ def call(){
                                                         if(!shouldBuild){
                                                             Utils.markStageSkippedForConditional('Windows Installer for x86_64')
                                                         }
-                                                        withEnv(['VC_RUNTIME_INSTALLER_LOCATION=c:\\msvc_runtime']){
+                                                        withEnv(['VC_RUNTIME_INSTALLER_LOCATION=.\\msvc_runtime']){
                                                             stage('Create .msi Installer'){
                                                                 if(shouldBuild){
                                                                     node('windows && x86_64 && docker'){
@@ -1091,7 +1108,6 @@ def call(){
                                                                                 -e UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
                                                                                 -e UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools \
                                                                                 -e BUILD_DIR=c:\\build\\tmp \
-                                                                                --mount type=volume,source=msvc-runtime,target=${env.VC_RUNTIME_INSTALLER_LOCATION} \
                                                                             "
                                                                             ){
                                                                                 try{
