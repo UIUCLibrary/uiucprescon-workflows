@@ -5,7 +5,6 @@ param (
     [string]$BuildPath = $(Join-Path -Path $PWD -ChildPath "build")
 
 )
-
 $ErrorActionPreference = 'Stop'
 
 $APP_NAME="Speedwagon (UIUC Prescon Edition)"
@@ -119,7 +118,7 @@ if ($wixPath) {
     Write-Error "Locating WiX Toolset - Failed"
     exit 1
 }
-if ($uvExec -eq $null){
+if ($null -ne $uvExec){
     $uvExec = Get-UV $buildpath
 }
 Build-Standalone -Uv "$uvExec" -Wheel "$Wheel" -WixPath "$wixPath" -BuildPath "$buildpath"
