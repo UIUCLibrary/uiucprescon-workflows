@@ -1460,7 +1460,7 @@ wheels = [
 
 [[package]]
 name = "speedwagon"
-version = "0.4.0b23"
+version = "0.4.0b27"
 source = { registry = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" }
 dependencies = [
     { name = "lxml" },
@@ -1469,9 +1469,9 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b23/speedwagon-0.4.0b23.tar.gz", hash = "sha256:93083edb9de37524ce0591242b4f1f512edfaa7d4f55921bbbf0a3cad6db55b5" }
+sdist = { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b27/speedwagon-0.4.0b27.tar.gz", hash = "sha256:0b19537218a09d80d1e1d88a60da4e57d55a62146dd6ccc13dbc075a3cd9a6bd" }
 wheels = [
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b23/speedwagon-0.4.0b23-py3-none-any.whl", hash = "sha256:18ef9e0cd81deee272b16c1cd7cf90bc982a3fc27edf64439200e9e07e70cbc0" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/speedwagon/0.4.0b27/speedwagon-0.4.0b27-py3-none-any.whl", hash = "sha256:0b415a1afae5ae9af331b4180a24b20bb7b7799c29c1477ee16081f9488543d8" },
 ]
 
 [package.optional-dependencies]
@@ -1599,13 +1599,13 @@ requires-dist = [
     { name = "py3exiv2bind", specifier = ">=0.1.11", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "pyhathiprep", specifier = ">=0.1.10", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "pykdu-compress", specifier = ">=0.1.9", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
-    { name = "speedwagon", specifier = ">=0.4.0b23", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
+    { name = "speedwagon", specifier = ">=0.4.0b26", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "speedwagon", extras = ["qt"], marker = "extra == 'gui'", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "speedwagon-contrib", marker = "extra == 'contrib'", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
     { name = "uiucprescon-images", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "uiucprescon-imagevalidate", specifier = ">=0.1.10.post1", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
-    { name = "uiucprescon-ocr", specifier = ">=0.1.5.post1", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
+    { name = "uiucprescon-ocr", specifier = ">=0.2.1", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "uiucprescon-packager", extras = ["kdu"], specifier = ">=0.2.15", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
 ]
 provides-extras = ["gui", "contrib"]
@@ -2088,46 +2088,46 @@ wheels = [
 
 [[package]]
 name = "uiucprescon-ocr"
-version = "0.2.0"
+version = "0.2.1"
 source = { registry = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" }
-sdist = { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0.tar.gz", hash = "sha256:3574088b20779ce5748eea43192f1c7479af21c1afcd7b32b6c735e4d56e29de" }
+sdist = { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1.tar.gz", hash = "sha256:c3a5ab00fee2c9c4a3b96afb3019c6b042740c5fc8aba634e858f3bb31377446" }
 wheels = [
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon.ocr-0.2.0-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:0db98c051b9b5aaf6d09e30d467ab67c3d72f675de8d55bfa98a192553d133eb" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon.ocr-0.2.0-cp311-cp311-macosx_11_0_universal2.whl", hash = "sha256:d967d84443c8c0a2cc92da2273c94369d19722f7b88d5f17d295c0d1612c339c" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon.ocr-0.2.0-cp312-cp312-macosx_11_0_universal2.whl", hash = "sha256:4a69c1535eea3d6efccec68dff265942fda8bee4f1d42a4bd1620668383c64b8" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon.ocr-0.2.0-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:274482964f5e6d2780cf2483ca3c9d2842da6d33864c135b7468304ebdb1931a" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon.ocr-0.2.0-cp314-cp314-macosx_11_0_universal2.whl", hash = "sha256:0d3e5f74c1dd36d6fe4e48d9fb5a2fe33c6b58c37c42e8533183b966cd93b1d5" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon.ocr-0.2.0-cp314t-cp314t-macosx_11_0_universal2.whl", hash = "sha256:7691cff0cfe8b27bb8ecb3025b32aec3f74f7a884ea24f2cfdb66425906ec80a" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp310-cp310-macosx_10_15_x86_64.whl", hash = "sha256:e91eb1c17ead44125c014e0430aad67c49b3b44b4f3b39fc7de918b9014e7b57" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:eee1c956ffb6d0718fec49c9daa2db3b99a9b7960f42ac8cb2c3d12c3398f776" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp310-cp310-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:66ee33610451399d21cdd2aa3fc3f3a8055fa4f8d404b00ecd45d9fdf853ec61" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0d3586087b7daeb07523b40e7eabc223d9c434128cc51a7b966b0e19759face9" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp310-cp310-win_amd64.whl", hash = "sha256:bc251bdd0e35bdbea72bee85409969d587df35c0d4358814a0cfa4ad812c4454" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:440a0a26eea1322ebbe70b16d61af4275a9a48abe9a2d615eab389b21db3cb51" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:8c72510f359b0c6bbfdb314de98f6e221f556679306268923f011e6f1001c72d" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c8cc887b4347b3e2627dba04415285b9784c402b3f2ac717733ce0e326e73e42" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f1b680696f3f5dabd2326c11acbbc9747aff410784ffabcca359e13dba8ead89" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp311-cp311-win_amd64.whl", hash = "sha256:31f9aba17ffb5a407335fa5cd4fd951d00b9c5103a46b6d69961635b0e78f727" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp312-cp312-macosx_10_15_x86_64.whl", hash = "sha256:052c7de47625e986fa1e78c7ef6c46828e7f6c7814c169439d72203a83d65b6a" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:6393856199c5e9fccb85d6d50e7ac15b83a1b542531a62a4e3f75620c44163c2" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:18763910a67aa7251f368191c3c1a7ccdfeec32d3c660c96a27c495d47ad7587" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:690bc9dad6ca41d002e5ff94800c748252eb3d56763a91df597dbe37e884135f" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:fb6e1a2fbfb6628dcbaa03dcc79d34b613bd6bed8f2005c70c251b76f2156a0c" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp313-cp313-macosx_10_15_x86_64.whl", hash = "sha256:41f1d346f2b2bcb0223f51d34ef3ffd2189c7b97df45e49718ee9a5008c8e487" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:c27372978ca7e35a56a18fcc53b1ac21bc60af5577d6fde8fe40b776d6bffd38" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:2a794edf6ff5b7016d78bb89cda13a4e1d4d11fffaee88619ff8bb533f0b9da9" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:989fbca6bd513f58aed8dd68f18c7430fe5a9c44a2ed87f78c1a447b0e3b9dee" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp313-cp313-win_amd64.whl", hash = "sha256:3b8c7d3b28ea777fcb1e67cd3ab9731f7772f3d402e19573360409c7ebc4dbc8" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:3b71c82fd7f0d361e2abb76c7bf906915a80523b7d7e72a4090be6fdba31a8ff" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:cdffe5e07e6dc4b1b1087ef9a9e236f24efd298b4c2eeda6b30b8b81224222ac" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:eb4cbb55f5564f847bacb6c3d69ce0c06ea96cad9d6752d7ac26da1b4583a818" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:53d9368b2d76cce65db03b65167e3869afbd5632b67f331622cafc2e8e4981e2" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314-win_amd64.whl", hash = "sha256:d5f92d07c8f04fb94fdaf3dc820bd6b6c61e9b783cb31412b8474d85b8692315" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:f39ecf52fbf698c90c109c60db5a38b646624f80a13969f3def7af972077b5f3" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:17dae396d303b28c386c2855073cd15367f63b0d8e27c8c6af05f3745be352a2" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c33a563cc6b03360f6b1a5debd9356ae5f525c85070041951e1ca7397dd9cf9a" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:6d897a5abf15e1fc87aea5450211ce160879bd3ca55a78b79995fe918d11aabb" },
-    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.0/uiucprescon_ocr-0.2.0-cp314-cp314t-win_amd64.whl", hash = "sha256:30f6f1558200a5bb6facd42e121d0726bd69137152449a90d1e14b2af166e8bc" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon.ocr-0.2.1-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:1ace7fd45f0f2876e042f170ca12fe39c2bbfafd9d57e23e41395e39692d6dc2" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon.ocr-0.2.1-cp311-cp311-macosx_11_0_universal2.whl", hash = "sha256:b6dd54aab0f3ce670135f419a7e8d9a62131e9593d68f63e8e3d5732f08fd2f3" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon.ocr-0.2.1-cp312-cp312-macosx_11_0_universal2.whl", hash = "sha256:047e29d30946e69eae1ac6316d17f97f3fc6ee95514473c85c0c6bb8faee9047" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon.ocr-0.2.1-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:a1398aaf15ca8a4270b885dde73be155fe2af206d956afe9e59ecd0e77fbce80" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon.ocr-0.2.1-cp314-cp314-macosx_11_0_universal2.whl", hash = "sha256:5bee81a7a4b9a9569b8825ae4f8c4540e063ca4158f8d8629874fe642b7bf980" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon.ocr-0.2.1-cp314t-cp314t-macosx_11_0_universal2.whl", hash = "sha256:2cf889ab6ec3cd089badd33eb125d1a734c6fe1e212079af333c6b6e28833c2c" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp310-cp310-macosx_10_15_x86_64.whl", hash = "sha256:27e17af2351d793e83863f2149618dd67b0df50d5e2ece2d22c606f8480c42d2" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:1dcfe97bebdc91b4f19de2eb7955a1103758082b85fde1687a0f9a0cf89c71fa" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp310-cp310-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:72d0b53f2ffd1b9cc49365ee3287de377c32edf58d9e224dc707bcbac37986e3" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e59eebac6f3f3d14705cb217ee04d73e210fe970cb4b50c52f07f98572a0e7fb" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:14b41f51c6663bc0de5ac3316633465ac1a8cbcda54e48085091109cdb5d6aa7" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:428f85e970c43dfaa09126d1661d94bc3f0c55e6815ab2a8f3b48c3d4c4bcb64" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:b564589eca3919986d7dc2e3f42f006cb5a62c9d10a8dbba4c6e851f15e5c6f2" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ee82a9ad368d444a6023b801c4010ba3a6b9f555c23d1e3866413927915f3bd4" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:182103c758f7beb1cf7ab7f3e2ec8530ff103eb37ff48783b71b57beb4e18318" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp311-cp311-win_amd64.whl", hash = "sha256:7e1232b1907acab1b0fd65b5d74ee57745a791f369140cef1c3436a1ad4f6d38" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp312-cp312-macosx_10_15_x86_64.whl", hash = "sha256:e214aacd7d0fbc5cb51c827bfadf5878f4b3796343cbe4b33914c176cd6e59f5" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:995b4de3506bf999d9b5132fee0b1fbd95db1c473a011d1136735023e90ba65a" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:75607be72f0af0965ca54a48bff32e041fa6972294be25e82a34ca758837791e" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e41d1e5dbf7fee228a587e5bccff0e0ba8eac178c23004a3abe78fb920fee237" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:1633b3a9e28b5b837327c52654bc183b121aafb070150a0182d085fa8f2deba5" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp313-cp313-macosx_10_15_x86_64.whl", hash = "sha256:7717d1ddb18f1bf55fb50fd85970459fa37ae81be1c217c749c3ea9fb57bad31" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:1a1b73a59d3c3e25ea1233584ea57c4f0e10fb32e09acc0deb0b15084791dbd2" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1986e76971f0b6b4c10728b151d41b00892980a244fc93e72fd7e9c6cee3877b" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b8153c4b9f791ce5e1ceb8d927fc6881545b8572103a45f9fa75325d18f3b5ee" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:db5f04bd389d03d4483ddc39ab7daf787b875b9b65b674623a619a6cc5741ddb" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:5edc1a1696247c40af28c07da3b064bd1f1892baa9b0ec66f534858bce0e4f2d" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:887d904c7d72840ab9275eb9bb42c053f9ab47c4d85d4eb54b57d1ec5f9debbf" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:04b4cc6fb005d4a5ce7d097b527810c47fc45360a3004ff6a8187d07a26b65be" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7f7b6fd33c4ab682007192a3bb46d88061acf7e7416c5f22a252c842a19c7f1b" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314-win_amd64.whl", hash = "sha256:a5782f495a2a115296bbca682be4a60bc709806881241dbd4e7b41244b0fdbe1" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:86f4d080daab9c7af35885e157c3f0917b25758f270b7d82e11b1792834342d8" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:2acb5d2a84614f33b225d43ec7fd577358db420f06cd1e28bd2f5558fd5e2fb6" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:edba1a679ee6a3bf82599f45bd2b327f7185ee914d8121490d30a4183afe5c57" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0f3dca1743d4bfa8d91f29f7cb004bc5bf9f660885bf78783e2478172c6e2d30" },
+    { url = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/packages/uiucprescon-ocr/0.2.1/uiucprescon_ocr-0.2.1-cp314-cp314t-win_amd64.whl", hash = "sha256:dc4ca87258470a4fb759a27e151300a7cde4aec574366bc8bcf48e0848732b76" },
 ]
 
 [[package]]
