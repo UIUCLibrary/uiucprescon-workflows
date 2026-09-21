@@ -852,13 +852,15 @@ def call(){
                                                                                     "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
                                                                                 ]){
                                                                                     try{
-                                                                                        bat(label: 'Running Tox',
-                                                                                            script: '''
-                                                                                                       venv\\Scripts\\uv python find cpython-%PYTHON_VERSION% --quiet 2>nul || venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
-                                                                                                       venv\\Scripts\\uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -vv
-                                                                                                       rmdir /s/q venv
-                                                                                                    '''
-                                                                                        )
+                                                                                        timeout(60){
+                                                                                            bat(label: 'Running Tox',
+                                                                                                script: '''
+                                                                                                           venv\\Scripts\\uv python find cpython-%PYTHON_VERSION% --quiet 2>nul || venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
+                                                                                                           venv\\Scripts\\uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -vv
+                                                                                                           rmdir /s/q venv
+                                                                                                        '''
+                                                                                            )
+                                                                                        }
                                                                                     } catch (e){
                                                                                         cleanWs(
                                                                                             patterns: [
