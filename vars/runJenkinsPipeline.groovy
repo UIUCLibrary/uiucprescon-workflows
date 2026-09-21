@@ -820,72 +820,72 @@ def call(){
                                                     "Tox Environment: ${toxEnv}",
                                                     {
                                                         node('docker && windows'){
-                                                            try{
-                                                                withEnv(
-                                                                    [
-                                                                        "PYTHON_VERSION=${version}",
-                                                                        "TOX_ENV=${toxEnv}",
-                                                                    ]
-                                                                ){
-                                                                    checkout scm
-                                                                    try{
-                                                                        docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
-                                                                            .inside("\
-                                                                                --label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" \
-                                                                                --mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
-                                                                                -e UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
-                                                                                --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
-                                                                                -e PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
-                                                                                --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
-                                                                                -e UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
-                                                                                -e UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools \
-                                                                                "
-                                                                            ){
-                                                                            installMSVCRuntime(env.VC_RUNTIME_INSTALLER_LOCATION)
-                                                                            bat '''python -m venv venv
-                                                                                   .\\venv\\Scripts\\pip install --disable-pip-version-check uv
-                                                                                   .\\venv\\Scripts\\uv python update-shell
-                                                                                '''
-                                                                            retry(3){
-                                                                                withEnv([
-                                                                                    "UV_CONFIG_FILE=${createWindowUVConfig()}",
-                                                                                    "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
-                                                                                ]){
-                                                                                    try{
-                                                                                        timeout(60){
-                                                                                            bat(label: 'Running Tox',
-                                                                                                script: '''
-                                                                                                           venv\\Scripts\\uv python find cpython-%PYTHON_VERSION% --quiet 2>nul || venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
-                                                                                                           venv\\Scripts\\uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -vv
-                                                                                                           rmdir /s/q venv
-                                                                                                        '''
-                                                                                            )
-                                                                                        }
-                                                                                    } catch (e){
-                                                                                        cleanWs(
-                                                                                            patterns: [
-                                                                                                [pattern: 'venv/', type: 'INCLUDE'],
-                                                                                                [pattern: '.tox', type: 'INCLUDE'],
-                                                                                                [pattern: '**/__pycache__/', type: 'INCLUDE'],
-                                                                                            ]
+                                                            withEnv(
+                                                                [
+                                                                    "PYTHON_VERSION=${version}",
+                                                                    "TOX_ENV=${toxEnv}",
+                                                                ]
+                                                            ){
+                                                                checkout scm
+                                                                try{
+                                                                    docker.image(env.DEFAULT_PYTHON_DOCKER_IMAGE ? env.DEFAULT_PYTHON_DOCKER_IMAGE: 'python')
+                                                                        .inside("\
+                                                                            --label=purpose=ci --label \"JOB_NAME=\$JOB_NAME\" --label \"absoluteUrl=${currentBuild.absoluteUrl}\" --label \"BUILD_NUMBER=${currentBuild.number}\" \
+                                                                            --mount type=volume,source=uv_python_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                                                                            -e UV_PYTHON_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvpython \
+                                                                            --mount type=volume,source=pipcache,target=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                                                                            -e PIP_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\pipcache \
+                                                                            --mount type=volume,source=uv_cache_dir,target=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                                                                            -e UV_CACHE_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvcache \
+                                                                            -e UV_TOOL_DIR=C:\\Users\\ContainerUser\\Documents\\cache\\uvtools \
+                                                                            "
+                                                                        ){
+                                                                        installMSVCRuntime(env.VC_RUNTIME_INSTALLER_LOCATION)
+                                                                        bat '''python -m venv venv
+                                                                               .\\venv\\Scripts\\pip install --disable-pip-version-check uv
+                                                                               .\\venv\\Scripts\\uv python update-shell
+                                                                            '''
+                                                                        retry(3){
+                                                                            withEnv([
+                                                                                "UV_CONFIG_FILE=${createWindowUVConfig()}",
+                                                                                "TOX_UV_PATH=${WORKSPACE}/venv/Scripts/uv.exe"
+                                                                            ]){
+                                                                                try{
+                                                                                    timeout(60){
+                                                                                        bat(label: 'Running Tox',
+                                                                                            script: '''
+                                                                                                       venv\\Scripts\\uv python find cpython-%PYTHON_VERSION% --quiet 2>nul || venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
+                                                                                                       venv\\Scripts\\uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -vv
+                                                                                                       rmdir /s/q venv
+                                                                                                    '''
                                                                                         )
-                                                                                        throw e
                                                                                     }
+                                                                                } catch (e){
+                                                                                    cleanWs(
+                                                                                        patterns: [
+                                                                                            [pattern: 'venv/', type: 'INCLUDE'],
+                                                                                            [pattern: '.tox', type: 'INCLUDE'],
+                                                                                            [pattern: '**/__pycache__/', type: 'INCLUDE'],
+                                                                                        ]
+                                                                                    )
+                                                                                    throw e
                                                                                 }
                                                                             }
                                                                         }
-                                                                    } finally {
+                                                                    }
+                                                                } finally {
+                                                                    if(fileExists(".git")){
                                                                         bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                    } else {
+                                                                        cleanWs(
+                                                                            patterns: [
+                                                                                [pattern: 'venv/', type: 'INCLUDE'],
+                                                                                [pattern: '.tox/', type: 'INCLUDE'],
+                                                                                [pattern: '**/__pycache__/', type: 'INCLUDE'],
+                                                                            ]
+                                                                        )
                                                                     }
                                                                 }
-                                                            } finally{
-                                                                cleanWs(
-                                                                    patterns: [
-                                                                        [pattern: 'venv/', type: 'INCLUDE'],
-                                                                        [pattern: '.tox/', type: 'INCLUDE'],
-                                                                        [pattern: '**/__pycache__/', type: 'INCLUDE'],
-                                                                    ]
-                                                                )
                                                             }
                                                         }
                                                     }
