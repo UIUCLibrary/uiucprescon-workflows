@@ -2,12 +2,11 @@ param (
     [Parameter(mandatory=$true)]
     [string]$Wheel,
     [string]$uvExec,
-    [string]$BuildPath = $(Join-Path -Path $PWD -ChildPath "build")
+    [string]$BuildPath = $(Join-Path -Path $PWD -ChildPath "build"),
+    [string]$PythonVersion = "3.14"
 
 )
-
 $ErrorActionPreference = 'Stop'
-
 $APP_NAME="Speedwagon (UIUC Prescon Edition)"
 $BOOTSTRAP_SCRIPT="./contrib/speedwagon_bootstrap.py"
 $PACKAGE_SCRIPT_URL="https://github.com/UIUCLibrary/speedwagon_scripts/archive/refs/tags/v0.1.4.tar.gz"
@@ -22,13 +21,15 @@ function Build-Standalone{
         [Parameter(mandatory=$true)]
         [string]$WixPath,
         [Parameter(mandatory=$true)]
-        [string]$BuildPath
+        [string]$BuildPath,
+        [Parameter(mandatory=$true)]
+        [string]$PythonVersion
     )
     Write-Host "Build-Standalone"
     $fullPath = Join-Path -Path $BuildPath -ChildPath "package"
     $env:Path += ";$WixPath"
-    & "$Uv" export --format pylock.toml --extra gui --extra contrib --no-dev --no-emit-project --no-header --output-file "${fullPath}\pylock.toml" | Out-Null
-    & "$Uv" tool run --python 3.14 --from package-speedwagon@${PACKAGE_SCRIPT_URL} package_speedwagon $Wheel -r "${fullPath}\pylock.toml" --app-name="$APP_NAME" --app-bootstrap-script="$BOOTSTRAP_SCRIPT" --hidden-import="speedwagon_contrib"  --build-path="$fullPath"
+    & "$Uv" export --python $PythonVersion --format pylock.toml --extra gui --extra contrib --no-dev --no-emit-project --no-header --output-file "${fullPath}\pylock.toml" | Out-Null
+    & "$Uv" tool run --python $PythonVersion --from package-speedwagon@${PACKAGE_SCRIPT_URL} package_speedwagon $Wheel -r "${fullPath}\pylock.toml" --app-name="$APP_NAME" --app-bootstrap-script="$BOOTSTRAP_SCRIPT" --hidden-import="speedwagon_contrib"  --build-path="$fullPath"
     if ($LASTEXITCODE -ne 0){
         Write-Host "Failed to build using package-speedwagon"
         exit 1
@@ -119,7 +120,7 @@ if ($wixPath) {
     Write-Error "Locating WiX Toolset - Failed"
     exit 1
 }
-if ($uvExec -eq $null){
+if ($null -ne $uvExec){
     $uvExec = Get-UV $buildpath
 }
-Build-Standalone -Uv "$uvExec" -Wheel "$Wheel" -WixPath "$wixPath" -BuildPath "$buildpath"
+Build-Standalone -Uv "$uvExec" -Wheel "$Wheel" -WixPath "$wixPath" -BuildPath "$buildpath" -PythonVersion "$PythonVersion"
