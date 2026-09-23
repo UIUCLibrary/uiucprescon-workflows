@@ -408,11 +408,15 @@ def createWindowUVConfig(){
     if(! fileExists('ci/jenkins/scripts/new-uv-global-config.ps1')){
         checkout scm
     }
-    return powershell(label: 'Setting up uv.toml config file', script: 'ci/jenkins/scripts/new-uv-global-config.ps1 $env:UV_INDEX_URL $env:UV_EXTRA_INDEX_URL', returnStdout: true).trim()
+    timeout(5){
+        return powershell(label: 'Setting up uv.toml config file', script: 'ci/jenkins/scripts/new-uv-global-config.ps1 $env:UV_INDEX_URL $env:UV_EXTRA_INDEX_URL', returnStdout: true).trim()
+    }
 }
 
 def createUnixUvConfig(){
-    return sh(label: 'Setting up uv.toml config file', script: 'sh ci/jenkins/scripts/create_uv_config.sh $UV_INDEX_URL $UV_EXTRA_INDEX_URL', returnStdout: true).trim()
+    timeout(5){
+        return sh(label: 'Setting up uv.toml config file', script: 'sh ci/jenkins/scripts/create_uv_config.sh $UV_INDEX_URL $UV_EXTRA_INDEX_URL', returnStdout: true).trim()
+    }
 }
 
 @NonCPS
@@ -874,16 +878,18 @@ def call(){
                                                                         }
                                                                     }
                                                                 } finally {
-                                                                    if(fileExists(".git")){
-                                                                        bat "${tool(name: 'Default', type: 'git')} clean -dfx"
-                                                                    } else {
-                                                                        cleanWs(
-                                                                            patterns: [
-                                                                                [pattern: 'venv/', type: 'INCLUDE'],
-                                                                                [pattern: '.tox/', type: 'INCLUDE'],
-                                                                                [pattern: '**/__pycache__/', type: 'INCLUDE'],
-                                                                            ]
-                                                                        )
+                                                                    timeout(10){
+                                                                        if(fileExists(".git")){
+                                                                            bat "${tool(name: 'Default', type: 'git')} clean -dfx"
+                                                                        } else {
+                                                                            cleanWs(
+                                                                                patterns: [
+                                                                                    [pattern: 'venv/', type: 'INCLUDE'],
+                                                                                    [pattern: '.tox/', type: 'INCLUDE'],
+                                                                                    [pattern: '**/__pycache__/', type: 'INCLUDE'],
+                                                                                ]
+                                                                            )
+                                                                        }
                                                                     }
                                                                 }
                                                             }
