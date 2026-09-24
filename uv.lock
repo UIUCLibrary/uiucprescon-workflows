@@ -1619,7 +1619,7 @@ requires-dist = [
     { name = "py3exiv2bind", specifier = ">=0.1.11", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "pyhathiprep", specifier = ">=0.1.10", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "pykdu-compress", specifier = ">=0.1.9", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
-    { name = "speedwagon", specifier = ">=0.4.0b26", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
+    { name = "speedwagon", specifier = ">=0.4.0b27", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "speedwagon", extras = ["qt"], marker = "extra == 'gui'", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "speedwagon-contrib", marker = "extra == 'contrib'", index = "https://nexus.library.illinois.edu/repository/uiuc_prescon_python/simple" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
