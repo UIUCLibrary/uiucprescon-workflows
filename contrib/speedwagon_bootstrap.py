@@ -18,12 +18,29 @@ CONFIG_DIRECTORY_NAME = "speedwagon-prescon"
 DEFAULT_CONFIG_DATA = """
 [GLOBAL]
 starting-tab = All
-debug = True
+debug = False
 
 [PLUGINS.speedwagon_uiucprescon.active_workflows]
 uiucprescon_active_workflows = True
 
 """.strip()
+
+logger = logging.getLogger(__name__)
+
+def configure_logger(args, stdout_loggers, stderr_loggers):
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setLevel(logging.DEBUG if args.debug else logging.INFO)
+    stdout_handler.addFilter(lambda rec: rec.levelno < logging.WARNING)
+    for logger in stdout_loggers:
+        logger.addHandler(stdout_handler)
+
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setLevel(logging.WARNING)
+    for logger in stderr_loggers:
+        logger.addHandler(stderr_handler)
+        logger.setLevel(
+            logging.DEBUG if args.debug else logging.INFO
+        )
 
 def main():  # pragma: no cover
     """Run main application."""
@@ -32,21 +49,26 @@ def main():  # pragma: no cover
 
     parser = speedwagon.config.config.CliArgsSetter.get_arg_parser()
     args = parser.parse_args(sys.argv[1:])
+    configure_logger(
+        args,
+        [
+            logger,
+            speedwagon.startup.logger
+        ],
+        [
+            logger,
+            speedwagon.startup.logger
+        ]
+    )
+
     if args.command is not None:
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setLevel(logging.INFO)
-        stdout_handler.addFilter(lambda rec: rec.levelno < logging.WARNING)
-        speedwagon.startup.logger.addHandler(stdout_handler)
-
-        stderr_handler = logging.StreamHandler(sys.stderr)
-        stderr_handler.setLevel(logging.WARNING)
-        speedwagon.startup.logger.addHandler(stderr_handler)
-
-        speedwagon.startup.logger.setLevel(logging.INFO)
         try:
-            speedwagon.startup.run_command(command_name=args.command, args=args)
+            speedwagon.startup.run_command(
+                command_name=args.command, args=args,
+                config_dir=CONFIG_DIRECTORY_NAME
+            )
         except BrokenPipeError:
-            print("Broken pipe error here")
+            logger.fatal("Broken pipe error here")
             raise
         return
     app = speedwagon.startup.ApplicationLauncher()
@@ -65,14 +87,18 @@ def main():  # pragma: no cover
         )
         if not os.path.exists(config_ini):
             with open(config_ini, "w") as f:
-                print(f"Creating a new config file at {config_ini}")
+                logger.info(f"Creating a new config file at {config_ini}")
                 f.write(DEFAULT_CONFIG_DATA)
                 f.write("\n")
     app.startup_tasks = [
         verify_plugin_start
         ]
     app.initialize()
-    sys.exit(app.run())
+    logger.info("Starting Speedwagon ...")
+    try:
+        sys.exit(app.run())
+    finally:
+        logger.info("Exited Speedwagon")
 
 
 if __name__ == '__main__':
