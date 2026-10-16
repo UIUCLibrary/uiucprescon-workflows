@@ -867,7 +867,6 @@ def call(){
                                                                                 } catch (e){
                                                                                     cleanWs(
                                                                                         patterns: [
-                                                                                            [pattern: 'venv/', type: 'INCLUDE'],
                                                                                             [pattern: '.tox', type: 'INCLUDE'],
                                                                                             [pattern: '**/__pycache__/', type: 'INCLUDE'],
                                                                                         ]
