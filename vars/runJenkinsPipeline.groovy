@@ -860,7 +860,6 @@ def call(){
                                                                                             script: '''
                                                                                                        venv\\Scripts\\uv python find cpython-%PYTHON_VERSION% --quiet 2>nul || venv\\Scripts\\uv python install cpython-%PYTHON_VERSION%
                                                                                                        venv\\Scripts\\uv run --only-group=tox-uv --frozen tox run --recreate --runner uv-venv-lock-runner -vv
-                                                                                                       rmdir /s/q venv
                                                                                                     '''
                                                                                         )
                                                                                     }
